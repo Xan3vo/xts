@@ -1454,27 +1454,21 @@ async def update_all_spender_roles():
                 print(f"Error updating roles for {member}: {e}")
 
 
-load_dotenv()
-TOKEN = os.getenv("token") or os.getenv("TOKEN")
-if not TOKEN:
-    print("Bot token not found in .env (expected key 'token' or 'TOKEN').")
-    sys.exit(1)
-TOKEN = TOKEN.strip().strip('"').strip("'")
+# Paste your bot token here (keep it secret!)
+TOKEN = "YOUR_BOT_TOKEN_HERE"
 
 @bot.event
 async def on_ready():
     try:
-        await bot.tree.sync()  # Sync commands
+        await bot.tree.sync()
     except Exception as e:
         print("Failed to sync commands:", e)
     try:
-        update_all_spender_roles.start()  # Start the passive updater
+        update_all_spender_roles.start()
     except RuntimeError:
         # task already started
         pass
     print(f"Bot ready as {bot.user}. Spender role updater task started.")
 
-# ---------------------------
-# Startup token
-# ---------------------------
+# Start the bot
 bot.run(TOKEN)
