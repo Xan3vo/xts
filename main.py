@@ -15,6 +15,8 @@ import discord
 from discord import app_commands
 from discord.ext import commands
 from discord.ext import tasks
+from dotenv import load_dotenv
+import sys
 
 # ---------------------------
 # Config (from user)
@@ -563,7 +565,6 @@ async def ticket_panel(interaction: discord.Interaction):
     embed.add_field(name="Other", value="Other support requests.", inline=False)
     await interaction.response.send_message(embed=embed, view=view)
 
-# NOTE: The old '/edit' command was removed to avoid duplicate registrations.
 # Use '/edit-payment' (defined below) to update payment instructions.
 
 # ---------------------------
@@ -826,21 +827,39 @@ async def view_payments(interaction: discord.Interaction):
 
 # Fix the /edit command declared earlier: we need to re-register proper handler to avoid typo
 # Remove previous registration and re-add properly by aliasing - easiest is to create a wrapper command with different name:
+
+
+
+# Modal-based editor for multiline payment instructions
+class PaymentEditModal(Modal):
+    def __init__(self, key: str, current_text: str = ""):
+        super().__init__(title=f"Edit payment: {key}")
+        self.key = key
+        # paragraph style allows multiline input in modals
+        self.instructions = TextInput(label="Instructions (multiline)", style=discord.TextStyle.paragraph, default=current_text or "", required=False, max_length=2000)
+        self.add_item(self.instructions)
+
+    async def on_submit(self, interaction: discord.Interaction):
+        # Save the multiline text exactly as provided by the admin
+        processed = self.instructions.value
+        data = read_json(PAYMENT_JSON)
+        data[self.key] = processed
+        write_json(PAYMENT_JSON, data)
+        await interaction.response.send_message(f"Saved instructions for **{self.key}**.", ephemeral=True)
+
+
 @bot.tree.command(name="edit-payment", description="Edit payment method instructions (admins only)")
-@app_commands.describe(payment_method="Payment method key", text="Instruction text")
-async def edit_payment_cmd(interaction: discord.Interaction, payment_method: str, text: str):
+@app_commands.describe(payment_method="Payment method key")
+async def edit_payment_cmd(interaction: discord.Interaction, payment_method: str):
     member = interaction.user
     if not isinstance(member, discord.Member) or not is_admin_member(member):
         await interaction.response.send_message("You do not have permission to run this command.", ephemeral=True)
         return
     key = payment_method.lower()
-    # Allow admins to include literal \n sequences which should become newlines in the stored instructions
-    # e.g. passing "Line1\nLine2" will be saved as two lines.
-    processed_text = text.replace('\\n', '\n')
     data = read_json(PAYMENT_JSON)
-    data[key] = processed_text
-    write_json(PAYMENT_JSON, data)
-    await interaction.response.send_message(f"Updated instructions for **{key}**.", ephemeral=True)
+    current = data.get(key, "")
+    modal = PaymentEditModal(key, current)
+    await interaction.response.send_modal(modal)
 
 TICKET_JSON = "tickets.json"  # make sure this matches your existing filename
 
@@ -1435,15 +1454,27 @@ async def update_all_spender_roles():
                 print(f"Error updating roles for {member}: {e}")
 
 
+load_dotenv()
+TOKEN = os.getenv("token") or os.getenv("TOKEN")
+if not TOKEN:
+    print("Bot token not found in .env (expected key 'token' or 'TOKEN').")
+    sys.exit(1)
+TOKEN = TOKEN.strip().strip('"').strip("'")
+
 @bot.event
 async def on_ready():
-    await bot.tree.sync()  # Sync commands
-    update_all_spender_roles.start()  # Start the passive updater
+    try:
+        await bot.tree.sync()  # Sync commands
+    except Exception as e:
+        print("Failed to sync commands:", e)
+    try:
+        update_all_spender_roles.start()  # Start the passive updater
+    except RuntimeError:
+        # task already started
+        pass
     print(f"Bot ready as {bot.user}. Spender role updater task started.")
-
-
 
 # ---------------------------
 # Startup token
 # ---------------------------
-bot.run("")
+bot.run(TOKEN)
