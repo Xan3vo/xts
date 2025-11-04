@@ -18,6 +18,8 @@ from discord.ext import tasks
 from dotenv import load_dotenv
 import sys
 
+TOKEN = "YOUR_BOT_TOKEN_HERE"
+
 # ---------------------------
 # Config (from user)
 # ---------------------------
@@ -34,7 +36,7 @@ CATEGORY_IDS = {
     "other": 1430037129924317254
 }
 
-PRICES = {"gamepass": 4.5, "groupfunds": 6, "ingame": 4.5}
+PRICES = {"gamepass": 4.9, "groupfunds": 6.5, "ingame": 5}
 
 PAYMENT_FEES = {
     "binance": 0,
@@ -1455,7 +1457,7 @@ async def update_all_spender_roles():
 
 
 # Paste your bot token here (keep it secret!)
-TOKEN = "YOUR_BOT_TOKEN_HERE"
+
 
 @bot.event
 async def on_ready():
