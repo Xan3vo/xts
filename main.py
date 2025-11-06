@@ -15,10 +15,9 @@ import discord
 from discord import app_commands
 from discord.ext import commands
 from discord.ext import tasks
-from dotenv import load_dotenv
 import sys
 
-TOKEN = "YOUR_BOT_TOKEN_HERE"
+TOKEN = ""
 
 # ---------------------------
 # Config (from user)
@@ -44,14 +43,30 @@ PAYMENT_FEES = {
     "wise": 0,
     "bank": 0,
     "paypal": 10,
-    "cashapp": 10,
     "tng": 7,
     "zelle": 7,
     "chime": 7,
     "skrill": 7,
-    "interac": 7,
     "giftcard": 7
 }
+
+# persistable fees file
+PAYMENT_FEES_PATH = "payment_fees.json"
+
+# load persisted fees (if present) to override defaults
+try:
+    _loaded = read_json(PAYMENT_FEES_PATH)
+    if isinstance(_loaded, dict) and _loaded:
+        PAYMENT_FEES.update({k.lower(): float(v) for k, v in _loaded.items()})
+except Exception:
+    pass
+
+def write_payment_fees():
+    try:
+        write_json(PAYMENT_FEES_PATH, PAYMENT_FEES)
+    except Exception as e:
+        print("Failed to write payment fees:", e)
+
 
 PAYMENT_JSON = "payment_info.json"
 TICKET_JSON = "tickets.json"
@@ -532,6 +547,52 @@ async def close_ticket(channel: discord.TextChannel, closer: discord.User, reaso
 # ---------------------------
 # Slash Commands
 # ---------------------------
+
+
+
+
+# Slash command: add/update a payment fee
+@bot.tree.command(name="add-payment", description="Add or update a payment method fee (admins only). Example: /add-payment paypal 10")
+@app_commands.describe(name="Payment method key", fee="Fee percentage (e.g. 7 for 7%)")
+async def add_payment_cmd(interaction: discord.Interaction, name: str, fee: float):
+    member = interaction.user
+    if not isinstance(member, discord.Member) or not is_admin_member(member):
+        await interaction.response.send_message("No permission.", ephemeral=True)
+        return
+    key = name.lower()
+    try:
+        PAYMENT_FEES[key] = float(fee)
+        write_payment_fees()
+        await interaction.response.send_message(f"Saved payment fee **{key}** = {fee}%.", ephemeral=True)
+    except Exception as e:
+        await interaction.response.send_message(f"Error saving fee: {e}", ephemeral=True)
+
+# Slash command: delete a payment method
+@bot.tree.command(name="delete-payment", description="Delete a payment method from the configured fees (admins only). Example: /delete-payment paypal")
+@app_commands.describe(name="Payment method key to delete")
+async def delete_payment_cmd(interaction: discord.Interaction, name: str):
+    member = interaction.user
+    if not isinstance(member, discord.Member) or not is_admin_member(member):
+        await interaction.response.send_message("No permission.", ephemeral=True)
+        return
+    key = name.lower()
+    if key not in PAYMENT_FEES:
+        await interaction.response.send_message(f"Payment method **{key}** not found.", ephemeral=True)
+        return
+    PAYMENT_FEES.pop(key, None)
+    write_payment_fees()
+    await interaction.response.send_message(f"Deleted payment method **{key}**.", ephemeral=True)
+
+
+
+
+
+
+
+
+
+
+
 
 @bot.event
 async def on_ready():
@@ -1457,6 +1518,44 @@ async def update_all_spender_roles():
 
 
 # Paste your bot token here (keep it secret!)
+
+
+
+
+
+
+
+
+
+@bot.tree.command(name="addppl", description="Add a user to the ticket (staff only).")
+@app_commands.describe(user="The user to add to the ticket")
+async def add_people_cmd(interaction: discord.Interaction, user: discord.User):
+    member = interaction.user
+    if not isinstance(member, discord.Member) or not (is_admin_member(member) or any(r.id == SUPPORT_ROLE_ID for r in member.roles)):
+        await interaction.response.send_message("You don't have permission to add users to tickets.", ephemeral=True)
+        return
+
+    channel = interaction.channel
+    if not isinstance(channel, discord.TextChannel):
+        await interaction.response.send_message("This command can only be used in a ticket channel.", ephemeral=True)
+        return
+
+    # Build overwrites for the user
+    overwrites = channel.overwrites_for(user)
+    overwrites.view_channel = True
+    overwrites.send_messages = True
+    await channel.set_permissions(user, overwrite=overwrites)
+
+    await interaction.response.send_message(f"{user.mention} has been added to the ticket.", ephemeral=True)
+
+
+
+
+
+
+
+
+
 
 
 @bot.event
