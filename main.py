@@ -987,24 +987,20 @@ async def handle_confirmation(user, channel, is_prefix=False, interaction=None):
     embed = None
     if robux_type == "ingame":
         category_id = NEEDS_IGG_ID
-        embed = discord.Embed(
-            title="In-Game Gifting Details Required",
-            description=(
-            "✏️ Fill out this IGG order format and send it as ONE message::\n\n"
-            "• **IGG**\n"
-            "• **👤 Roblox Username:**\n"
-            "• **🎮 Game Name:**\n"
-            "• **🎁 Item / Gamepass Name:\n**"
-            "• **💵 Amount of Robux:**\n\n"
-            "✅ Example (do not copy this — just a reference):\n"
-            "IGG\n"
-            "ThatzNotKash\n"
-            "Feed Your Pet\n"
-            "Permanent Growth Upgrade (2k)\n"
-            "15999 Robux"
-            ),
-            color=discord.Color.gold()
-        )
+        # Move channel and send a plain message ".igg", then return to avoid the later embed send.
+        new_category = bot.get_channel(category_id)
+        if new_category:
+            await channel.edit(category=new_category)
+            await channel.send(".igg")
+            if not is_prefix and interaction:
+                await interaction.response.send_message("Ticket confirmed and moved.", ephemeral=True)
+        else:
+            msg = "Error: target category not found."
+            if is_prefix:
+                await channel.send(msg)
+            elif interaction:
+                await interaction.response.send_message(msg, ephemeral=True)
+        return
     elif robux_type == "groupfunds":
         category_id = NEEDS_GF_ID
         embed = discord.Embed(
