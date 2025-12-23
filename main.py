@@ -35,7 +35,7 @@ CATEGORY_IDS = {
     "other": 1430037129924317254
 }
 
-PRICES = {"gamepass": 4.9, "groupfunds": 6.5, "ingame": 5}
+PRICES = {"gamepass": 4.75, "groupfunds": 6.25, "ingame": 4.8}
 
 PAYMENT_FEES = {
     "binance": 0,
@@ -545,6 +545,125 @@ async def close_ticket(channel: discord.TextChannel, closer: discord.User, reaso
             pass
 
 # ---------------------------
+# Close fail ticket function
+# ---------------------------
+async def closefail_ticket(channel: discord.TextChannel, closer: Optional[discord.User] = None, reason: Optional[str] = None):
+    # DM the user politely
+    user = None
+    for uid, data in tickets_data.items():
+        if data.get("channel_id") == channel.id:
+            try:
+                user = await bot.fetch_user(int(uid))
+            except Exception:
+                user = None
+            break
+
+    if user:
+        try:
+            embed = discord.Embed(
+                title="Transaction Failed ❌",
+                description=(
+                    "Unfortunately, this transaction could not be completed.\n\n"
+                    "If you have any questions, please contact support.\n\n"
+                    "Thank you for your patience!"
+                ),
+                color=discord.Color.red()
+            )
+            await user.send(embed=embed)
+        except Exception as e:
+            print(f"Could not DM user: {e}")
+
+    # Close the ticket without updating accounting
+    await close_ticket(channel, closer or bot.user, reason or "Failed transaction close")
+
+# ---------------------------
+# Inactivity Auto-Close System
+# ---------------------------
+INACTIVITY_CATEGORIES = [
+    1430037129924317254,
+    1432747658501427212,
+    1430036848029204511,
+    1422279034867286046
+]
+
+# Track pending auto-closes: channel_id -> warning_timestamp
+pending_auto_closes: Dict[int, datetime] = {}
+
+class KeepTicketOpenButton(Button):
+    def __init__(self):
+        super().__init__(style=discord.ButtonStyle.success, label="🛑 Keep Ticket Open", custom_id="keep_ticket_open")
+
+    async def callback(self, interaction: discord.Interaction):
+        channel = interaction.channel
+        if not isinstance(channel, discord.TextChannel):
+            return
+
+        # Remove from pending closes
+        pending_auto_closes.pop(channel.id, None)
+
+        # Confirm the ticket is staying open
+        embed = discord.Embed(
+            title="Ticket Kept Open",
+            description="This ticket will remain open. Inactivity tracking has been reset.",
+            color=discord.Color.green()
+        )
+        await interaction.response.send_message(embed=embed, ephemeral=True)
+
+@tasks.loop(hours=1)  # Check every hour
+async def check_ticket_inactivity():
+    now = datetime.now(timezone.utc)
+    guild = bot.guilds[0] if bot.guilds else None  # Assuming single guild
+    if not guild:
+        return
+
+    for cat_id in INACTIVITY_CATEGORIES:
+        category = guild.get_channel(cat_id)
+        if not category or not isinstance(category, discord.CategoryChannel):
+            continue
+
+        for channel in category.text_channels:
+            # Skip if already has pending close
+            if channel.id in pending_auto_closes:
+                warning_time = pending_auto_closes[channel.id]
+                # Check if 12 hours have passed since warning
+                if now - warning_time >= timedelta(hours=12):
+                    # Auto-close based on category
+                    if cat_id == 1422279034867286046:
+                        await close_ticket(channel, bot.user, "Auto-closed due to inactivity (normal)")
+                    else:
+                        await closefail_ticket(channel, bot.user, "Auto-closed due to inactivity (failed)")
+                    pending_auto_closes.pop(channel.id, None)
+                continue
+
+            # Check last message
+            try:
+                last_message = None
+                async for msg in channel.history(limit=1):
+                    last_message = msg
+                    break
+
+                if last_message:
+                    time_since_last = now - last_message.created_at
+                    if time_since_last >= timedelta(hours=48):
+                        # Send warning
+                        embed = discord.Embed(
+                            title="Ticket Inactivity Warning",
+                            description="This ticket has been inactive for 2 days and will close in 12 hours unless stopped.",
+                            color=discord.Color.orange()
+                        )
+
+                        view = View()
+                        view.add_item(KeepTicketOpenButton())
+
+                        try:
+                            await channel.send("@here", embed=embed, view=view)
+                            pending_auto_closes[channel.id] = now
+                        except Exception as e:
+                            print(f"Failed to send inactivity warning to {channel}: {e}")
+            except Exception as e:
+                print(f"Error checking channel {channel}: {e}")
+
+# ---------------------------
 # Slash Commands
 # ---------------------------
 
@@ -792,6 +911,8 @@ async def on_message(message: discord.Message):
     if message.author.bot:
         return
     chan = message.channel
+    # Remove from pending auto-closes if someone sends a message
+    pending_auto_closes.pop(chan.id, None)
     # check if this channel is a ticket channel in tickets_data
     for uid, data in tickets_data.items():
         if data.get("channel_id") == chan.id:
@@ -1202,33 +1323,8 @@ async def slash_closefail(interaction: discord.Interaction, channel: Optional[di
 
     await interaction.response.defer(ephemeral=True)
 
-    # DM the user politely
-    user = None
-    for uid, data in tickets_data.items():
-        if data.get("channel_id") == target.id:
-            try:
-                user = await bot.fetch_user(int(uid))
-            except Exception:
-                user = None
-            break
-
-    if user:
-        try:
-            embed = discord.Embed(
-                title="Transaction Failed ❌",
-                description=(
-                    "Unfortunately, this transaction could not be completed.\n\n"
-                    "If you have any questions, please contact support.\n\n"
-                    "Thank you for your patience!"
-                ),
-                color=discord.Color.red()
-            )
-            await user.send(embed=embed)
-        except Exception as e:
-            print(f"Could not DM user: {e}")
-
-    # Close the ticket without updating accounting
-    await close_ticket(target, closer=member, reason="Manual closefail")
+    # Close the ticket with failure logic
+    await closefail_ticket(target, closer=member, reason="Manual closefail")
 
 # Prefix version
 @bot.command(name="closefail")
@@ -1243,33 +1339,8 @@ async def prefix_closefail(ctx: commands.Context, channel: Optional[discord.Text
         await ctx.send("Please provide a valid channel or run this command inside the ticket channel.")
         return
 
-    # DM the user politely
-    user = None
-    for uid, data in tickets_data.items():
-        if data.get("channel_id") == target.id:
-            try:
-                user = await bot.fetch_user(int(uid))
-            except Exception:
-                user = None
-            break
-
-    if user:
-        try:
-            embed = discord.Embed(
-                title="Transaction Failed ❌",
-                description=(
-                    "Unfortunately, this transaction could not be completed.\n\n"
-                    "If you have any questions, please contact support.\n\n"
-                    "Thank you for your patience!"
-                ),
-                color=discord.Color.red()
-            )
-            await user.send(embed=embed)
-        except Exception as e:
-            print(f"Could not DM user: {e}")
-
-    # Close the ticket without updating accounting
-    await close_ticket(target, closer=member, reason="Manual closefail")
+    # Close the ticket with failure logic
+    await closefail_ticket(target, closer=member, reason="Manual closefail")
 
 
 
@@ -1562,10 +1633,11 @@ async def on_ready():
         print("Failed to sync commands:", e)
     try:
         update_all_spender_roles.start()
+        check_ticket_inactivity.start()
     except RuntimeError:
         # task already started
         pass
-    print(f"Bot ready as {bot.user}. Spender role updater task started.")
+    print(f"Bot ready as {bot.user}. Spender role updater and inactivity check tasks started.")
 
 # Start the bot
 bot.run(TOKEN)
