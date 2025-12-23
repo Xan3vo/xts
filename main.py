@@ -70,6 +70,7 @@ def write_payment_fees():
 
 PAYMENT_JSON = "payment_info.json"
 TICKET_JSON = "tickets.json"
+PENDING_CLOSES_JSON = "pending_closes.json"
 TRANSCRIPTS_DIR = "transcripts"
 
 # create transcripts dir if missing
@@ -105,6 +106,21 @@ def write_json(path: str, data: Any):
     with open(path, "w", encoding="utf-8") as f:
         json.dump(data, f, indent=2, default=str)
 
+# Helper for pending closes
+def read_pending_closes():
+    data = read_json(PENDING_CLOSES_JSON)
+    result = {}
+    for cid, ts_str in data.items():
+        try:
+            result[int(cid)] = datetime.fromisoformat(ts_str)
+        except:
+            pass
+    return result
+
+def write_pending_closes(data: Dict[int, datetime]):
+    serializable = {str(cid): dt.isoformat() for cid, dt in data.items()}
+    write_json(PENDING_CLOSES_JSON, serializable)
+
 # default payment_info structure (if file missing)
 if not os.path.exists(PAYMENT_JSON):
     write_json(PAYMENT_JSON, {
@@ -127,6 +143,9 @@ tree = bot.tree
 
 # We'll use a simple in-memory cache for tickets synchronized to tickets.json
 tickets_data: Dict[str, Any] = read_json(TICKET_JSON)  # key: user_id (str) -> info dict
+
+# Load pending closes
+pending_auto_closes: Dict[int, datetime] = read_pending_closes()
 
 # ---------------------------
 # Utility: Permissions + Checks
@@ -600,6 +619,7 @@ class KeepTicketOpenButton(Button):
 
         # Remove from pending closes
         pending_auto_closes.pop(channel.id, None)
+        write_pending_closes(pending_auto_closes)
 
         # Confirm the ticket is staying open
         embed = discord.Embed(
@@ -633,6 +653,7 @@ async def check_ticket_inactivity():
                     else:
                         await closefail_ticket(channel, bot.user, "Auto-closed due to inactivity (failed)")
                     pending_auto_closes.pop(channel.id, None)
+                    write_pending_closes(pending_auto_closes)
                 continue
 
             # Check last message
@@ -644,6 +665,12 @@ async def check_ticket_inactivity():
 
                 if last_message:
                     time_since_last = now - last_message.created_at
+                    # Special handling for category 1422279034867286046: auto-close after 1 day without warning
+                    if cat_id == 1422279034867286046:
+                        if time_since_last >= timedelta(hours=24):
+                            await close_ticket(channel, bot.user, "Auto-closed due to inactivity (normal)")
+                        continue  # Skip warning for this category
+                    
                     if time_since_last >= timedelta(hours=48):
                         # Send warning
                         embed = discord.Embed(
@@ -656,8 +683,21 @@ async def check_ticket_inactivity():
                         view.add_item(KeepTicketOpenButton())
 
                         try:
-                            await channel.send("@here", embed=embed, view=view)
+                            # Find ticket creator to ping
+                            mention = "@here"  # fallback
+                            for uid, data in tickets_data.items():
+                                if data.get("channel_id") == channel.id:
+                                    user_id = data.get("user_id")
+                                    if user_id:
+                                        user = guild.get_member(user_id)
+                                        if user:
+                                            mention = user.mention
+                                        else:
+                                            mention = f"<@{user_id}>"
+                                    break
+                            await channel.send(mention, embed=embed, view=view)
                             pending_auto_closes[channel.id] = now
+                            write_pending_closes(pending_auto_closes)
                         except Exception as e:
                             print(f"Failed to send inactivity warning to {channel}: {e}")
             except Exception as e:
