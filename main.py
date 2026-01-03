@@ -1129,8 +1129,10 @@ async def on_message(message: discord.Message):
     pending_auto_closes.pop(chan.id, None)
     # check if this channel is a ticket channel in tickets_data
     for uid, user_tickets in tickets_data.items():
+        if not isinstance(user_tickets, list):
+            continue
         for ticket in user_tickets:
-            if ticket.get("channel_id") == chan.id:
+            if isinstance(ticket, dict) and int(ticket.get("channel_id", 0)) == chan.id:
                 # if author is the ticket owner, update last_activity
                 if int(uid) == message.author.id:
                     ticket["last_activity"] = datetime.now(timezone.utc).isoformat()
