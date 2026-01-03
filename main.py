@@ -1157,11 +1157,11 @@ async def on_message(message: discord.Message):
             sticky_tasks[ch_id].cancel()
         # Create new task
         async def send_sticky():
-            await asyncio.sleep(3)
+            await asyncio.sleep(0)  # Changed to 0 for testing
             try:
                 await chan.send(sticky_messages[ch_id])
-            except Exception:
-                pass
+            except Exception as e:
+                print(f"Failed to send sticky to {chan.id}: {e}")
             sticky_tasks.pop(ch_id, None)
         task = asyncio.create_task(send_sticky())
         sticky_tasks[ch_id] = task
