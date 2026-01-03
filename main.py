@@ -1,20 +1,19 @@
 # main.py
+from dotenv import load_dotenv
+import os
+
+load_dotenv()
+TOKEN = os.getenv("TOKEN")
+
 import discord
 from discord import app_commands
 from discord.ext import commands, tasks
 from discord.ui import View, Select, Button, Modal, TextInput
 import json
-import os
 import asyncio
 from datetime import datetime, timezone, timedelta
 from typing import Optional, Dict, Any, List
 import aiohttp
-from discord import app_commands
-import aiohttp
-import discord
-from discord import app_commands
-from discord.ext import commands
-from discord.ext import tasks
 import sys
 
 from dotenv import load_dotenv
