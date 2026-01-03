@@ -887,7 +887,7 @@ async def help_cmd(interaction: discord.Interaction):
 
     embed.set_footer(text="Use commands in appropriate channels. Staff roles required for most commands.")
 
-    await interaction.response.send_message(embed=embed)
+    await interaction.response.send_message(embed=embed, ephemeral=False)
 
 
 
