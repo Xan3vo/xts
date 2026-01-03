@@ -1074,8 +1074,10 @@ async def prefix_close(ctx: commands.Context, channel: Optional[discord.TextChan
     user = None
     ticket_amount = 0.0
     for uid, user_tickets in tickets_data.items():
+        if not isinstance(user_tickets, list):
+            continue
         for ticket in user_tickets:
-            if ticket.get("channel_id") == target.id:
+            if isinstance(ticket, dict) and ticket.get("channel_id") == target.id:
                 ticket_amount = ticket.get("total_cost", 0.0)
                 try:
                     user = await bot.fetch_user(int(uid))
@@ -1086,8 +1088,10 @@ async def prefix_close(ctx: commands.Context, channel: Optional[discord.TextChan
             continue
         break
 
-    if user:
-        try:
+    if not user:
+        await ctx.send("This is not a ticket channel.")
+        return
+
             dm_message = (
                 "✅ **This transaction has been completed!**\n\n"
                 "It has been a pleasure doing business with you! "
@@ -1157,7 +1161,7 @@ async def on_message(message: discord.Message):
             sticky_tasks[ch_id].cancel()
         # Create new task
         async def send_sticky():
-            await asyncio.sleep(0)  # Changed to 0 for testing
+            await asyncio.sleep(3)
             try:
                 await chan.send(sticky_messages[ch_id])
             except Exception as e:
