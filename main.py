@@ -743,6 +743,8 @@ async def check_ticket_inactivity():
                             write_pending_closes(pending_auto_closes)
                         except Exception as e:
                             print(f"Failed to send inactivity warning to {channel}: {e}")
+                        except Exception as e:
+                            print(f"Failed to send inactivity warning to {channel}: {e}")
             except Exception as e:
                 print(f"Error checking channel {channel}: {e}")
 
@@ -1032,16 +1034,18 @@ async def slash_close(interaction: discord.Interaction, channel: Optional[discor
                 "+Vouch <@1183784957232029742> 20,000 Robux via Group Payout, 110$! Very Fast. "
                 "(Attached an image/photo)\n\n"
                 "📌 **Please follow the exact format including the '+' as it registers to a bot.**"
-            )
+    )
 
-            embed = discord.Embed(
-                title="Transaction Completed 🎉",
-                description=dm_message,
-                color=discord.Color.green()
-            )
-            await user.send(embed=embed)
-        except Exception as e:
-            print(f"Could not DM user: {e}")
+    embed = discord.Embed(
+        title="Transaction Completed 🎉",
+        description=dm_message,
+        color=discord.Color.green()
+    )
+
+    try:
+        await user.send(embed=embed)
+    except Exception as e:
+        print(f"Could not DM user: {e}")
 
     # Update accounting JSON
     if ticket_amount > 0:
@@ -1092,28 +1096,30 @@ async def prefix_close(ctx: commands.Context, channel: Optional[discord.TextChan
         await ctx.send("This is not a ticket channel.")
         return
 
-            dm_message = (
-                "✅ **This transaction has been completed!**\n\n"
-                "It has been a pleasure doing business with you! "
-                "Feel free to vouch 💖\n\n"
-                "**HOW TO VOUCH:**\n"
-                "➡️ [Go to the vouch channel](https://discord.com/channels/945694600377552916/965514182986452992)\n\n"
-                "**Be very detailed on your vouches to Shiba!**\n\n"
-                "__Example:__\n"
-                "+Vouch <@1183784957232029742> (items) (price) (your feedback) (photo/proof)\n\n"
-                "+Vouch <@1183784957232029742> 20,000 Robux via Group Payout, 110$! Very Fast. "
-                "(Attached an image/photo)\n\n"
-                "📌 **Please follow the exact format including the '+' as it registers to a bot.**"
-            )
+    dm_message = (
+        "✅ **This transaction has been completed!**\n\n"
+        "It has been a pleasure doing business with you! "
+        "Feel free to vouch 💖\n\n"
+        "**HOW TO VOUCH:**\n"
+        "➡️ [Go to the vouch channel](https://discord.com/channels/945694600377552916/965514182986452992)\n\n"
+        "**Be very detailed on your vouches to Shiba!**\n\n"
+        "__Example:__\n"
+        "+Vouch <@1183784957232029742> (items) (price) (your feedback) (photo/proof)\n\n"
+        "+Vouch <@1183784957232029742> 20,000 Robux via Group Payout, 110$! Very Fast. "
+        "(Attached an image/photo)\n\n"
+        "📌 **Please follow the exact format including the '+' as it registers to a bot.**"
+    )
 
-            embed = discord.Embed(
-                title="Transaction Completed 🎉",
-                description=dm_message,
-                color=discord.Color.green()
-            )
-            await user.send(embed=embed)
-        except Exception as e:
-            print(f"Could not DM user: {e}")
+    embed = discord.Embed(
+        title="Transaction Completed 🎉",
+        description=dm_message,
+        color=discord.Color.green()
+    )
+
+    try:
+        await user.send(embed=embed)
+    except Exception as e:
+        print(f"Could not DM user: {e}")
 
     # Update accounting JSON
     if ticket_amount > 0:
@@ -1161,7 +1167,7 @@ async def on_message(message: discord.Message):
             sticky_tasks[ch_id].cancel()
         # Create new task
         async def send_sticky():
-            await asyncio.sleep(3)
+            await asyncio.sleep(0)  # Changed to 0 for testing
             try:
                 await chan.send(sticky_messages[ch_id])
             except Exception as e:
