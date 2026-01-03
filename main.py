@@ -357,7 +357,7 @@ async def create_ticket_for_user(interaction: discord.Interaction, delivery_type
     global tickets_data
     user_key = str(user.id)
     user_tickets = tickets_data.get(user_key, [])
-    active_tickets = [t for t in user_tickets if guild.get_channel(t.get("channel_id")) is not None]
+    active_tickets = [t for t in user_tickets if guild.get_channel(int(t.get("channel_id", 0))) is not None]
     if len(active_tickets) >= 3:
         await interaction.response.send_message("You can have up to 3 active tickets.", ephemeral=True)
         return
@@ -506,7 +506,7 @@ class ConfirmCloseButton(Button):
         owner_id = None
         for uid, user_tickets in tickets_data.items():
             for ticket in user_tickets:
-                if ticket.get("channel_id") == channel.id:
+                if int(ticket.get("channel_id", 0)) == channel.id:
                     owner_id = int(uid)
                     break
             else:
@@ -578,7 +578,7 @@ async def close_ticket(channel: discord.TextChannel, closer: discord.User, reaso
     # Remove ticket from tickets_data
     for uid, user_tickets in list(tickets_data.items()):
         for i, ticket in enumerate(user_tickets):
-            if ticket.get("channel_id") == channel.id:
+            if int(ticket.get("channel_id", 0)) == channel.id:
                 user_tickets.pop(i)
                 if not user_tickets:
                     tickets_data.pop(uid, None)
@@ -606,7 +606,7 @@ async def closefail_ticket(channel: discord.TextChannel, closer: Optional[discor
     user = None
     for uid, user_tickets in tickets_data.items():
         for ticket in user_tickets:
-            if ticket.get("channel_id") == channel.id:
+            if int(ticket.get("channel_id", 0)) == channel.id:
                 try:
                     user = await bot.fetch_user(int(uid))
                 except Exception:
@@ -726,7 +726,7 @@ async def check_ticket_inactivity():
                             mention = "@here"  # fallback
                             for uid, user_tickets in tickets_data.items():
                                 for ticket in user_tickets:
-                                    if ticket.get("channel_id") == channel.id:
+                                    if int(ticket.get("channel_id", 0)) == channel.id:
                                         user_id = ticket.get("user_id")
                                         if user_id:
                                             user = guild.get_member(user_id)
@@ -1009,7 +1009,7 @@ async def slash_close(interaction: discord.Interaction, channel: Optional[discor
     ticket_amount = 0.0
     for uid, user_tickets in tickets_data.items():
         for ticket in user_tickets:
-            if ticket.get("channel_id") == target.id:
+            if int(ticket.get("channel_id", 0)) == target.id:
                 ticket_amount = ticket.get("total_cost", 0.0)
                 try:
                     user = await bot.fetch_user(int(uid))
@@ -1192,7 +1192,7 @@ async def check_inactivity():
                     if now - last >= timedelta(days=3):
                         # send warning ping to user in channel
                         try:
-                            chan = bot.get_channel(channel_id) or await bot.fetch_channel(channel_id)
+                            chan = bot.get_channel(int(channel_id)) or await bot.fetch_channel(int(channel_id))
                             if chan:
                                 user = chan.guild.get_member(user_id) or await chan.guild.fetch_member(user_id)
                                 if user:
@@ -1353,7 +1353,7 @@ async def handle_confirmation(user, channel, is_prefix=False, interaction=None):
     ticket = None
     for uid, user_tickets in tickets.items():
         for t in user_tickets:
-            if t["channel_id"] == channel.id:
+            if int(t.get("channel_id", 0)) == channel.id:
                 ticket_id = uid
                 ticket = t
                 break
