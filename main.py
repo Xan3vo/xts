@@ -787,7 +787,7 @@ async def delete_payment_cmd(interaction: discord.Interaction, name: str):
 ])
 async def set_price_cmd(interaction: discord.Interaction, subtype: str, price: float):
     member = interaction.user
-    if not isinstance(member, discord.Member) or not (1241398408946913420 in [r.id for r in member.roles]):
+    if not isinstance(member, discord.Member) or not (1457147563475075284 in [r.id for r in member.roles]):
         await interaction.response.send_message("No permission.", ephemeral=True)
         return
     key = subtype.lower()
@@ -805,7 +805,7 @@ async def set_price_cmd(interaction: discord.Interaction, subtype: str, price: f
 @bot.tree.command(name="view-prices", description="View current prices (admins only)")
 async def view_prices_cmd(interaction: discord.Interaction):
     member = interaction.user
-    if not isinstance(member, discord.Member) or not (1241398408946913420 in [r.id for r in member.roles]):
+    if not isinstance(member, discord.Member) or not (1457147563475075284 in [r.id for r in member.roles]):
         await interaction.response.send_message("No permission.", ephemeral=True)
         return
     text = "\n".join(f"**{k}**: ${v:.2f} per thousand Robux" for k, v in PRICES.items())
@@ -813,11 +813,6 @@ async def view_prices_cmd(interaction: discord.Interaction):
 # Slash command: help
 @bot.tree.command(name="help", description="Display bot commands and features ")
 async def help_cmd(interaction: discord.Interaction):
-    member = interaction.user
-    if not isinstance(member, discord.Member) or not is_admin_member(member):
-        await interaction.response.send_message("No permission.", ephemeral=False)
-        return
-
     embed = discord.Embed(
         title="🤖 Bot Help - Guide",
         description="This bot manages a ticket system for Robux purchases and support requests.",
@@ -892,7 +887,7 @@ async def help_cmd(interaction: discord.Interaction):
 
     embed.set_footer(text="Use commands in appropriate channels. Staff roles required for most commands.")
 
-    await interaction.response.send_message(embed=embed, ephemeral=True)
+    await interaction.response.send_message(embed=embed)
 
 
 
