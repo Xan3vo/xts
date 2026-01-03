@@ -17,7 +17,11 @@ from discord.ext import commands
 from discord.ext import tasks
 import sys
 
-TOKEN = ""
+from dotenv import load_dotenv
+
+load_dotenv()
+
+TOKEN = os.getenv("TOKEN")
 
 # ---------------------------
 # Config (from user)
@@ -36,6 +40,23 @@ CATEGORY_IDS = {
 }
 
 PRICES = {"gamepass": 4.75, "groupfunds": 6.25, "ingame": 4.8}
+
+# persistable prices file
+PRICES_PATH = "prices.json"
+
+# load persisted prices (if present) to override defaults
+try:
+    _loaded = read_json(PRICES_PATH)
+    if isinstance(_loaded, dict) and _loaded:
+        PRICES.update({k.lower(): float(v) for k, v in _loaded.items()})
+except Exception:
+    pass
+
+def write_prices():
+    try:
+        write_json(PRICES_PATH, PRICES)
+    except Exception as e:
+        print("Failed to write prices:", e)
 
 PAYMENT_FEES = {
     "binance": 0,
@@ -142,7 +163,7 @@ bot = commands.Bot(command_prefix="!", intents=discord.Intents.all())
 tree = bot.tree
 
 # We'll use a simple in-memory cache for tickets synchronized to tickets.json
-tickets_data: Dict[str, Any] = read_json(TICKET_JSON)  # key: user_id (str) -> info dict
+tickets_data: Dict[str, List[Dict[str, Any]]] = read_json(TICKET_JSON) or {}
 
 # Load pending closes
 pending_auto_closes: Dict[int, datetime] = read_pending_closes()
@@ -325,21 +346,18 @@ async def create_ticket_for_user(interaction: discord.Interaction, delivery_type
         await interaction.response.send_message("This command must be used in a server (guild).", ephemeral=True)
         return
 
-    # Check for existing ticket
+    # Check for existing tickets (allow up to 3)
     global tickets_data
     user_key = str(user.id)
-    existing = tickets_data.get(user_key)
-    if existing:
-        # Make sure channel still exists
-        chan_id = existing.get("channel_id")
-        ch = guild.get_channel(chan_id) if chan_id else None
-        if ch:
-            await interaction.response.send_message(f"You already have a ticket: {ch.mention}", ephemeral=True)
-            return
-        else:
-            # stale entry; remove
-            tickets_data.pop(user_key, None)
-            write_json(TICKET_JSON, tickets_data)
+    user_tickets = tickets_data.get(user_key, [])
+    active_tickets = [t for t in user_tickets if guild.get_channel(t.get("channel_id")) is not None]
+    if len(active_tickets) >= 3:
+        await interaction.response.send_message("You can have up to 3 active tickets.", ephemeral=True)
+        return
+    # Clean up stale tickets
+    user_tickets = active_tickets
+    tickets_data[user_key] = user_tickets
+    write_json(TICKET_JSON, tickets_data)
 
     # Determine category key and channel name
     category_key = "other"
@@ -408,7 +426,7 @@ async def create_ticket_for_user(interaction: discord.Interaction, delivery_type
         notes = extra_notes
 
     # Save ticket meta
-    tickets_data[user_key] = {
+    ticket_info = {
         "channel_id": channel.id,
         "user_id": user.id,
         "created_at": datetime.now(timezone.utc).isoformat(),
@@ -421,6 +439,9 @@ async def create_ticket_for_user(interaction: discord.Interaction, delivery_type
         "warned": False,
         "warn_time": None
     }
+    user_tickets = tickets_data.get(user_key, [])
+    user_tickets.append(ticket_info)
+    tickets_data[user_key] = user_tickets
     write_json(TICKET_JSON, tickets_data)
 
     # Post ticket info embed in the ticket channel
@@ -476,10 +497,14 @@ class ConfirmCloseButton(Button):
             return
         # fetch user ticket owner from tickets_data
         owner_id = None
-        for uid, data in tickets_data.items():
-            if data.get("channel_id") == channel.id:
-                owner_id = int(uid)
-                break
+        for uid, user_tickets in tickets_data.items():
+            for ticket in user_tickets:
+                if ticket.get("channel_id") == channel.id:
+                    owner_id = int(uid)
+                    break
+            else:
+                continue
+            break
         # permission check: either support role or owner or admin
         member = interaction.user
         allowed = False
@@ -544,14 +569,17 @@ async def close_ticket(channel: discord.TextChannel, closer: discord.User, reaso
             await log_chan.send(f"Ticket closed: {channel.name} • Closed by: {closer} ({closer.id})\nTranscript saved at {filename}")
 
     # Remove ticket from tickets_data
-    to_remove = None
-    for uid, data in list(tickets_data.items()):
-        if data.get("channel_id") == channel.id:
-            to_remove = uid
-            break
-    if to_remove:
-        tickets_data.pop(to_remove, None)
-        write_json(TICKET_JSON, tickets_data)
+    for uid, user_tickets in list(tickets_data.items()):
+        for i, ticket in enumerate(user_tickets):
+            if ticket.get("channel_id") == channel.id:
+                user_tickets.pop(i)
+                if not user_tickets:
+                    tickets_data.pop(uid, None)
+                write_json(TICKET_JSON, tickets_data)
+                break
+        else:
+            continue
+        break
 
     # delete the channel
     try:
@@ -569,13 +597,17 @@ async def close_ticket(channel: discord.TextChannel, closer: discord.User, reaso
 async def closefail_ticket(channel: discord.TextChannel, closer: Optional[discord.User] = None, reason: Optional[str] = None):
     # DM the user politely
     user = None
-    for uid, data in tickets_data.items():
-        if data.get("channel_id") == channel.id:
-            try:
-                user = await bot.fetch_user(int(uid))
-            except Exception:
-                user = None
-            break
+    for uid, user_tickets in tickets_data.items():
+        for ticket in user_tickets:
+            if ticket.get("channel_id") == channel.id:
+                try:
+                    user = await bot.fetch_user(int(uid))
+                except Exception:
+                    user = None
+                break
+        else:
+            continue
+        break
 
     if user:
         try:
@@ -667,8 +699,8 @@ async def check_ticket_inactivity():
                     time_since_last = now - last_message.created_at
                     # Special handling for category 1422279034867286046: auto-close after 1 day without warning
                     if cat_id == 1422279034867286046:
-                        if time_since_last >= timedelta(hours=24):
-                            await close_ticket(channel, bot.user, "Auto-closed due to inactivity (normal)")
+                        if time_since_last >= timedelta(hours=12):
+                            await close_ticket(channel, bot.user, "Auto-closed due to completion")
                         continue  # Skip warning for this category
                     
                     if time_since_last >= timedelta(hours=48):
@@ -676,7 +708,7 @@ async def check_ticket_inactivity():
                         embed = discord.Embed(
                             title="Ticket Inactivity Warning",
                             description="This ticket has been inactive for 2 days and will close in 12 hours unless stopped.",
-                            color=discord.Color.orange()
+                            color=discord.Color.red()
                         )
 
                         view = View()
@@ -685,16 +717,20 @@ async def check_ticket_inactivity():
                         try:
                             # Find ticket creator to ping
                             mention = "@here"  # fallback
-                            for uid, data in tickets_data.items():
-                                if data.get("channel_id") == channel.id:
-                                    user_id = data.get("user_id")
-                                    if user_id:
-                                        user = guild.get_member(user_id)
-                                        if user:
-                                            mention = user.mention
-                                        else:
-                                            mention = f"<@{user_id}>"
-                                    break
+                            for uid, user_tickets in tickets_data.items():
+                                for ticket in user_tickets:
+                                    if ticket.get("channel_id") == channel.id:
+                                        user_id = ticket.get("user_id")
+                                        if user_id:
+                                            user = guild.get_member(user_id)
+                                            if user:
+                                                mention = user.mention
+                                            else:
+                                                mention = f"<@{user_id}>"
+                                        break
+                                else:
+                                    continue
+                                break
                             await channel.send(mention, embed=embed, view=view)
                             pending_auto_closes[channel.id] = now
                             write_pending_closes(pending_auto_closes)
@@ -741,6 +777,124 @@ async def delete_payment_cmd(interaction: discord.Interaction, name: str):
     PAYMENT_FEES.pop(key, None)
     write_payment_fees()
     await interaction.response.send_message(f"Deleted payment method **{key}**.", ephemeral=True)
+
+# Slash command: set/update a price
+@bot.tree.command(name="set-price", description="Set or update a price for a subtype (admins only). Example: /set-price gamepass 4.75")
+@app_commands.describe(subtype="Subtype key", price="Price per thousand Robux")
+@app_commands.choices(subtype=[
+    app_commands.Choice(name="Gamepass", value="gamepass"),
+    app_commands.Choice(name="Group Funds", value="groupfunds"),
+    app_commands.Choice(name="In-Game Gifting", value="ingame"),
+])
+async def set_price_cmd(interaction: discord.Interaction, subtype: str, price: float):
+    member = interaction.user
+    if not isinstance(member, discord.Member) or not (1241398408946913420 in [r.id for r in member.roles]):
+        await interaction.response.send_message("No permission.", ephemeral=True)
+        return
+    key = subtype.lower()
+    if key not in PRICES:
+        await interaction.response.send_message(f"Invalid subtype. Valid: {', '.join(PRICES.keys())}", ephemeral=True)
+        return
+    try:
+        PRICES[key] = float(price)
+        write_prices()
+        await interaction.response.send_message(f"Set price for **{key}** = ${price:.2f} per thousand Robux.", ephemeral=True)
+    except Exception as e:
+        await interaction.response.send_message(f"Error saving price: {e}", ephemeral=True)
+
+# Slash command: view prices
+@bot.tree.command(name="view-prices", description="View current prices (admins only)")
+async def view_prices_cmd(interaction: discord.Interaction):
+    member = interaction.user
+    if not isinstance(member, discord.Member) or not (1241398408946913420 in [r.id for r in member.roles]):
+        await interaction.response.send_message("No permission.", ephemeral=True)
+        return
+    text = "\n".join(f"**{k}**: ${v:.2f} per thousand Robux" for k, v in PRICES.items())
+    await interaction.response.send_message(embed=discord.Embed(title="Current Prices", description=text), ephemeral=True)
+# Slash command: help
+@bot.tree.command(name="help", description="Display bot commands and features ")
+async def help_cmd(interaction: discord.Interaction):
+    member = interaction.user
+    if not isinstance(member, discord.Member) or not is_admin_member(member):
+        await interaction.response.send_message("No permission.", ephemeral=False)
+        return
+
+    embed = discord.Embed(
+        title="🤖 Bot Help - Guide",
+        description="This bot manages a ticket system for Robux purchases and support requests.",
+        color=discord.Color.blue()
+    )
+
+    embed.add_field(
+        name="🎫 Ticket System",
+        value=(
+            "**Ticket Creation:**\n"
+            "• `/ticket-panel` - Send the ticket creation panel (admins only)\n"
+            "• Users can create up to 3 active tickets\n"
+            "• Supports Robux purchases (Gamepass, Group Funds, In-Game) and other support\n\n"
+            "**Ticket Management:**\n"
+            "• `/close` - Close a ticket (staff only)\n"
+            "• `/closefail` - Close without adding to balance (staff only)\n"
+            "• `/conf` - Confirm payment and move ticket (staff only)\n"
+            "• Automatic inactivity closing after 3 days\n"
+            "• Transcripts saved to files"
+        ),
+        inline=False
+    )
+
+    embed.add_field(
+        name="💰 Pricing & Payments",
+        value=(
+            "**Price Management:**\n"
+            "• `/set-price` - Update Robux prices (price managers only)\n"
+            "• `/view-prices` - View current prices (price managers only)\n\n"
+            "**Payment Methods:**\n"
+            "• `/add-payment` - Add/update payment fees (admins only)\n"
+            "• `/delete-payment` - Remove payment method (admins only)\n"
+            "• `/edit-payment` - Edit payment instructions (admins only)\n"
+            "• `/view-payments` - View payment instructions (admins only)"
+        ),
+        inline=False
+    )
+
+    embed.add_field(
+        name="📊 Analytics & Tools",
+        value=(
+            "**User Info:**\n"
+            "• `/info @user` - View total spent by user (staff only)\n"
+            "• `/leaderboard` - Top 10 spenders (public)\n\n"
+            "**Currency Conversion:**\n"
+            "• `/curr <amount> <from> <to>` - Convert currencies\n\n"
+            "**Accounting:**\n"
+            "• `!addbal @user <amount>` - Add to user balance (staff only)\n"
+            "• `!subbal @user <amount>` - Subtract from user balance (staff only)"
+        ),
+        inline=False
+    )
+
+    embed.add_field(
+        name="⚙️ System Features",
+        value=(
+            "**Automatic Systems:**\n"
+            "• Inactivity warnings after 2 days\n"
+            "• Auto-close after 3 days of inactivity\n"
+            "• Category-based ticket organization\n"
+            "• Persistent data storage (JSON files)\n"
+            "• Role-based permissions\n\n"
+            "**Data Files:**\n"
+            "• `tickets.json` - Active tickets\n"
+            "• `accounting.json` - User spending data\n"
+            "• `prices.json` - Robux prices\n"
+            "• `payment_fees.json` - Payment fees\n"
+            "• `transcripts/` - Ticket transcripts"
+        ),
+        inline=False
+    )
+
+    embed.set_footer(text="Use commands in appropriate channels. Staff roles required for most commands.")
+
+    await interaction.response.send_message(embed=embed, ephemeral=True)
+
 
 
 
@@ -836,14 +990,18 @@ async def slash_close(interaction: discord.Interaction, channel: Optional[discor
     # DM user before closing
     user = None
     ticket_amount = 0.0
-    for uid, data in tickets_data.items():
-        if data.get("channel_id") == target.id:
-            ticket_amount = data.get("total_cost", 0.0)
-            try:
-                user = await bot.fetch_user(int(uid))
-            except Exception:
-                user = None
-            break
+    for uid, user_tickets in tickets_data.items():
+        for ticket in user_tickets:
+            if ticket.get("channel_id") == target.id:
+                ticket_amount = ticket.get("total_cost", 0.0)
+                try:
+                    user = await bot.fetch_user(int(uid))
+                except Exception:
+                    user = None
+                break
+        else:
+            continue
+        break
 
     if user:
         try:
@@ -900,21 +1058,25 @@ async def prefix_close(ctx: commands.Context, channel: Optional[discord.TextChan
     # DM user before closing
     user = None
     ticket_amount = 0.0
-    for uid, data in tickets_data.items():
-        if data.get("channel_id") == target.id:
-            ticket_amount = data.get("total_cost", 0.0)
-            try:
-                user = await bot.fetch_user(int(uid))
-            except Exception:
-                user = None
-            break
+    for uid, user_tickets in tickets_data.items():
+        for ticket in user_tickets:
+            if ticket.get("channel_id") == target.id:
+                ticket_amount = ticket.get("total_cost", 0.0)
+                try:
+                    user = await bot.fetch_user(int(uid))
+                except Exception:
+                    user = None
+                break
+        else:
+            continue
+        break
 
     if user:
         try:
             dm_message = (
                 "✅ **This transaction has been completed!**\n\n"
                 "It has been a pleasure doing business with you! "
-                "Feel free to vouch at\n\n"
+                "Feel free to vouch 💖\n\n"
                 "**HOW TO VOUCH:**\n"
                 "➡️ [Go to the vouch channel](https://discord.com/channels/945694600377552916/965514182986452992)\n\n"
                 "**Be very detailed on your vouches to Shiba!**\n\n"
@@ -954,19 +1116,23 @@ async def on_message(message: discord.Message):
     # Remove from pending auto-closes if someone sends a message
     pending_auto_closes.pop(chan.id, None)
     # check if this channel is a ticket channel in tickets_data
-    for uid, data in tickets_data.items():
-        if data.get("channel_id") == chan.id:
-            # if author is the ticket owner, update last_activity
-            if int(uid) == message.author.id:
-                data["last_activity"] = datetime.now(timezone.utc).isoformat()
-                data["warned"] = False
-                data["warn_time"] = None
-                write_json(TICKET_JSON, tickets_data)
-            # also update if support replies? spec said track messages by ticket owner; but let's update last_activity on any new messages in ticket channel
-            else:
-                data["last_activity"] = datetime.now(timezone.utc).isoformat()
-                write_json(TICKET_JSON, tickets_data)
-            break
+    for uid, user_tickets in tickets_data.items():
+        for ticket in user_tickets:
+            if ticket.get("channel_id") == chan.id:
+                # if author is the ticket owner, update last_activity
+                if int(uid) == message.author.id:
+                    ticket["last_activity"] = datetime.now(timezone.utc).isoformat()
+                    ticket["warned"] = False
+                    ticket["warn_time"] = None
+                    write_json(TICKET_JSON, tickets_data)
+                # also update if support replies? spec said track messages by ticket owner; but let's update last_activity on any new messages in ticket channel
+                else:
+                    ticket["last_activity"] = datetime.now(timezone.utc).isoformat()
+                    write_json(TICKET_JSON, tickets_data)
+                break
+        else:
+            continue
+        break
     await bot.process_commands(message)
 
 # ---------------------------
@@ -978,53 +1144,58 @@ async def check_inactivity():
     now = datetime.now(timezone.utc)
     tickets = read_json(TICKET_JSON)
     changed = False
-    for uid, data in list(tickets.items()):
-        try:
-            last_str = data.get("last_activity")
-            if not last_str:
-                continue
-            last = datetime.fromisoformat(last_str)
-            warned = data.get("warned", False)
-            warn_time_str = data.get("warn_time")
-            channel_id = data.get("channel_id")
-            user_id = int(uid)
-            # if > 3 days and not warned -> send warning
-            if not warned:
-                if now - last >= timedelta(days=3):
-                    # send warning ping to user in channel
-                    try:
-                        chan = bot.get_channel(channel_id) or await bot.fetch_channel(channel_id)
-                        if chan:
-                            user = chan.guild.get_member(user_id) or await chan.guild.fetch_member(user_id)
-                            if user:
-                                await chan.send(content=f"{user.mention} • Your ticket is inactive. It will automatically close in 24 hours unless you reply.")
-                                # mark warned
-                                data["warned"] = True
-                                data["warn_time"] = now.isoformat()
-                                changed = True
-                    except Exception:
-                        pass
-            else:
-                # if warned, check if warn_time >=24h ago -> auto close
-                if warn_time_str:
-                    warn_time = datetime.fromisoformat(warn_time_str)
-                    if now - warn_time >= timedelta(hours=24):
-                        # auto-close
+    for uid, user_tickets in list(tickets.items()):
+        for i, data in enumerate(user_tickets):
+            try:
+                last_str = data.get("last_activity")
+                if not last_str:
+                    continue
+                last = datetime.fromisoformat(last_str)
+                warned = data.get("warned", False)
+                warn_time_str = data.get("warn_time")
+                channel_id = data.get("channel_id")
+                user_id = int(uid)
+                # if > 3 days and not warned -> send warning
+                if not warned:
+                    if now - last >= timedelta(days=3):
+                        # send warning ping to user in channel
                         try:
-                            chan = bot.get_channel(channel_id)
+                            chan = bot.get_channel(channel_id) or await bot.fetch_channel(channel_id)
                             if chan:
-                                # fetch a "system" user for closer? use bot.user
-                                await close_ticket(chan, closer=bot.user, reason="Auto-closed due to inactivity")
-                            else:
-                                # channel missing; just remove ticket entry
-                                tickets.pop(uid, None)
-                                changed = True
+                                user = chan.guild.get_member(user_id) or await chan.guild.fetch_member(user_id)
+                                if user:
+                                    await chan.send(content=f"{user.mention} • Your ticket is inactive. It will automatically close in 24 hours unless you reply.")
+                                    # mark warned
+                                    data["warned"] = True
+                                    data["warn_time"] = now.isoformat()
+                                    changed = True
                         except Exception:
-                            # attempt removal
-                            tickets.pop(uid, None)
-                            changed = True
-        except Exception as e:
-            print("Inactivity check error for ticket", uid, e)
+                            pass
+                else:
+                    # if warned, check if warn_time >=24h ago -> auto close
+                    if warn_time_str:
+                        warn_time = datetime.fromisoformat(warn_time_str)
+                        if now - warn_time >= timedelta(hours=24):
+                            # auto-close
+                            try:
+                                chan = bot.get_channel(channel_id)
+                                if chan:
+                                    # fetch a "system" user for closer? use bot.user
+                                    await close_ticket(chan, closer=bot.user, reason="Auto-closed due to inactivity")
+                                else:
+                                    # channel missing; just remove ticket entry
+                                    user_tickets.pop(i)
+                                    if not user_tickets:
+                                        tickets.pop(uid, None)
+                                    changed = True
+                            except Exception:
+                                # attempt removal
+                                user_tickets.pop(i)
+                                if not user_tickets:
+                                    tickets.pop(uid, None)
+                                changed = True
+            except Exception as e:
+                print("Inactivity check error for ticket", uid, e)
     if changed:
         write_json(TICKET_JSON, tickets)
         # also update in-memory
@@ -1116,12 +1287,17 @@ async def handle_confirmation(user, channel, is_prefix=False, interaction=None):
     """Handles moving the ticket and sending the right embed"""
     tickets = load_tickets()
     ticket_id = None
-    for t_id, t_data in tickets.items():
-        if t_data["channel_id"] == channel.id:
-            ticket_id = t_id
+    ticket = None
+    for uid, user_tickets in tickets.items():
+        for t in user_tickets:
+            if t["channel_id"] == channel.id:
+                ticket_id = uid
+                ticket = t
+                break
+        if ticket:
             break
 
-    if not ticket_id:
+    if not ticket:
         msg = "This is not a valid ticket channel."
         if is_prefix:
             await channel.send(msg)
@@ -1129,7 +1305,6 @@ async def handle_confirmation(user, channel, is_prefix=False, interaction=None):
             await interaction.response.send_message(msg, ephemeral=True)
         return
 
-    ticket = tickets[ticket_id]
     robux_type = ticket.get("subtype")
 
     # Check staff permission
