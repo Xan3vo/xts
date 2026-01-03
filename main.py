@@ -157,6 +157,7 @@ if not os.path.exists(STICKY_JSON):
 # Load sticky messages
 sticky_messages: Dict[str, str] = read_json(STICKY_JSON) or {}
 sticky_tasks: Dict[str, asyncio.Task] = {}
+sticky_message_ids: Dict[str, int] = {}
 
 # ---------------------------
 # Intents & Bot Setup
@@ -1178,7 +1179,16 @@ async def on_message(message: discord.Message):
         async def send_sticky():
             await asyncio.sleep(0)  # Changed to 0 for testing
             try:
-                await chan.send(sticky_messages[ch_id])
+                # Delete old sticky message if exists
+                if ch_id in sticky_message_ids:
+                    try:
+                        old_msg = await chan.fetch_message(sticky_message_ids[ch_id])
+                        await old_msg.delete()
+                    except Exception:
+                        pass
+                # Send new sticky message
+                msg = await chan.send(sticky_messages[ch_id])
+                sticky_message_ids[ch_id] = msg.id
             except Exception as e:
                 print(f"Failed to send sticky to {chan.id}: {e}")
             sticky_tasks.pop(ch_id, None)
