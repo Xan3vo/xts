@@ -35,6 +35,9 @@ CATEGORY_IDS = {
     "other": 1430037129924317254
 }
 
+TICKET_PANEL_CHANNEL_ID = 1241428048260366438
+BOOT_TIME = None
+
 PRICES = {"gamepass": 4.75, "groupfunds": 6.25, "ingame": 4.8}
 
 # persistable prices file
@@ -923,6 +926,14 @@ def admin_check(interaction: discord.Interaction) -> bool:
     if isinstance(member, discord.Member):
         return is_admin_member(member)
     return False
+
+async def send_ticket_panel(channel: discord.TextChannel):
+    """Send the ticket creation panel to a channel."""
+    view = TicketPanelView()
+    embed = discord.Embed(title="Create a Ticket", description="Select the ticket type below to start.", color=discord.Color.green())
+    embed.add_field(name="Robux", value="Buy Robux (Gamepass / Group Funds / In-Game).", inline=False)
+    embed.add_field(name="Other", value="Other support requests.", inline=False)
+    await channel.send(embed=embed, view=view)
 
 @bot.tree.command(name="ticket-panel", description="Send the ticket creation panel (admins only)")
 async def ticket_panel(interaction: discord.Interaction):
@@ -1838,6 +1849,9 @@ async def add_people_cmd(interaction: discord.Interaction, user: discord.User):
 
 @bot.event
 async def on_ready():
+    global BOOT_TIME
+    BOOT_TIME = datetime.now(timezone.utc)
+    
     try:
         await bot.tree.sync()
     except Exception as e:
@@ -1848,6 +1862,37 @@ async def on_ready():
     except RuntimeError:
         # task already started
         pass
+    
+    # Auto-manage ticket panel
+    channel = bot.get_channel(TICKET_PANEL_CHANNEL_ID)
+    if channel and isinstance(channel, discord.TextChannel):
+        try:
+            # Fetch recent messages from bot
+            messages = []
+            async for msg in channel.history(limit=50):
+                if msg.author == bot.user:
+                    messages.append(msg)
+            panel_messages = [msg for msg in messages if msg.embeds and any(embed.title == "Create a Ticket" for embed in msg.embeds)]
+            
+            if panel_messages:
+                # Check for panels from current boot
+                current_boot_panels = [msg for msg in panel_messages if msg.created_at >= BOOT_TIME]
+                if not current_boot_panels:
+                    # Delete old panels
+                    for msg in panel_messages:
+                        await msg.delete()
+                    # Send new panel
+                    await send_ticket_panel(channel)
+                    print("Replaced old ticket panel with new one.")
+                else:
+                    print("Ticket panel from current boot found, keeping it.")
+            else:
+                # No panel found, send new one
+                await send_ticket_panel(channel)
+                print("Sent new ticket panel.")
+        except Exception as e:
+            print(f"Error managing ticket panel: {e}")
+    
     print(f"Bot ready as {bot.user}. Spender role updater and inactivity check tasks started.")
 
 # Start the bot
