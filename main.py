@@ -89,6 +89,7 @@ def write_payment_fees():
 
 
 PAYMENT_JSON = "payment_info.json"
+STICKY_JSON = "stickymessages.json"
 TICKET_JSON = "tickets.json"
 PENDING_CLOSES_JSON = "pending_closes.json"
 TRANSCRIPTS_DIR = "transcripts"
@@ -149,6 +150,13 @@ if not os.path.exists(PAYMENT_JSON):
 
 if not os.path.exists(TICKET_JSON):
     write_json(TICKET_JSON, {})
+
+if not os.path.exists(STICKY_JSON):
+    write_json(STICKY_JSON, {})
+
+# Load sticky messages
+sticky_messages: Dict[str, str] = read_json(STICKY_JSON) or {}
+sticky_tasks: Dict[str, asyncio.Task] = {}
 
 # ---------------------------
 # Intents & Bot Setup
@@ -762,7 +770,7 @@ async def add_payment_cmd(interaction: discord.Interaction, name: str, fee: floa
         await interaction.response.send_message(f"Error saving fee: {e}", ephemeral=True)
 
 # Slash command: delete a payment method
-@bot.tree.command(name="delete-payment", description="Delete a payment method from the configured fees (admins only). Example: /delete-payment paypal")
+@bot.tree.command(name="delete-payment", description="Delete a payment method (fees and instructions) (admins only). Example: /delete-payment paypal")
 @app_commands.describe(name="Payment method key to delete")
 async def delete_payment_cmd(interaction: discord.Interaction, name: str):
     member = interaction.user
@@ -775,6 +783,10 @@ async def delete_payment_cmd(interaction: discord.Interaction, name: str):
         return
     PAYMENT_FEES.pop(key, None)
     write_payment_fees()
+    # Also remove from payment instructions
+    data = read_json(PAYMENT_JSON)
+    data.pop(key, None)
+    write_json(PAYMENT_JSON, data)
     await interaction.response.send_message(f"Deleted payment method **{key}**.", ephemeral=True)
 
 # Slash command: set/update a price
@@ -846,7 +858,8 @@ async def help_cmd(interaction: discord.Interaction):
             "• `/add-payment` - Add/update payment fees (admins only)\n"
             "• `/delete-payment` - Remove payment method (admins only)\n"
             "• `/edit-payment` - Edit payment instructions (admins only)\n"
-            "• `/view-payments` - View payment instructions (admins only)"
+            "• `/view-payments` - View payment instructions (admins only)\n"
+            "• `/stick` - Set sticky message for a channel (admins only)"
         ),
         inline=False
     )
@@ -1135,6 +1148,24 @@ async def on_message(message: discord.Message):
         else:
             continue
         break
+
+    # Sticky messages
+    ch_id = str(chan.id)
+    if ch_id in sticky_messages:
+        # Cancel existing task
+        if ch_id in sticky_tasks:
+            sticky_tasks[ch_id].cancel()
+        # Create new task
+        async def send_sticky():
+            await asyncio.sleep(3)
+            try:
+                await chan.send(sticky_messages[ch_id])
+            except Exception:
+                pass
+            sticky_tasks.pop(ch_id, None)
+        task = asyncio.create_task(send_sticky())
+        sticky_tasks[ch_id] = task
+
     await bot.process_commands(message)
 
 # ---------------------------
@@ -1245,6 +1276,23 @@ class PaymentEditModal(Modal):
         await interaction.response.send_message(f"Saved instructions for **{self.key}**.", ephemeral=True)
 
 
+class StickyEditModal(Modal):
+    def __init__(self, ch_id: str, current: str):
+        super().__init__(title="Edit sticky message")
+        self.ch_id = ch_id
+        self.message = TextInput(label="Sticky message (leave empty to remove)", style=discord.TextStyle.paragraph, default=current, required=False, max_length=2000)
+        self.add_item(self.message)
+
+    async def on_submit(self, interaction: discord.Interaction):
+        msg = self.message.value.strip()
+        if msg:
+            sticky_messages[self.ch_id] = msg
+        else:
+            sticky_messages.pop(self.ch_id, None)
+        write_json(STICKY_JSON, sticky_messages)
+        await interaction.response.send_message("Sticky message updated.", ephemeral=True)
+
+
 @bot.tree.command(name="edit-payment", description="Edit payment method instructions (admins only)")
 @app_commands.describe(payment_method="Payment method key")
 async def edit_payment_cmd(interaction: discord.Interaction, payment_method: str):
@@ -1257,6 +1305,20 @@ async def edit_payment_cmd(interaction: discord.Interaction, payment_method: str
     current = data.get(key, "")
     modal = PaymentEditModal(key, current)
     await interaction.response.send_modal(modal)
+
+
+@bot.tree.command(name="stick", description="Set or edit sticky message for a channel (admins only)")
+@app_commands.describe(channel="The channel to set sticky for")
+async def stick_cmd(interaction: discord.Interaction, channel: discord.TextChannel):
+    member = interaction.user
+    if not isinstance(member, discord.Member) or not is_admin_member(member):
+        await interaction.response.send_message("No permission.", ephemeral=True)
+        return
+    ch_id = str(channel.id)
+    current = sticky_messages.get(ch_id, "")
+    modal = StickyEditModal(ch_id, current)
+    await interaction.response.send_modal(modal)
+
 
 TICKET_JSON = "tickets.json"  # make sure this matches your existing filename
 
