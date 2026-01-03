@@ -2,8 +2,11 @@
 from dotenv import load_dotenv
 import os
 
-load_dotenv()
+# Load .env file from protected folder
+load_dotenv('/root/config/.env')
+
 TOKEN = os.getenv("TOKEN")
+print("Loaded TOKEN:", TOKEN)  # temporary debug line
 
 import discord
 from discord import app_commands
@@ -15,12 +18,6 @@ from datetime import datetime, timezone, timedelta
 from typing import Optional, Dict, Any, List
 import aiohttp
 import sys
-
-from dotenv import load_dotenv
-
-load_dotenv()
-
-TOKEN = os.getenv("TOKEN")
 
 # ---------------------------
 # Config (from user)
