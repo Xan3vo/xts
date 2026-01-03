@@ -505,7 +505,11 @@ class ConfirmCloseButton(Button):
         # fetch user ticket owner from tickets_data
         owner_id = None
         for uid, user_tickets in tickets_data.items():
+            if not isinstance(user_tickets, list):
+                continue
             for ticket in user_tickets:
+                if not isinstance(ticket, dict):
+                    continue
                 if int(ticket.get("channel_id", 0)) == channel.id:
                     owner_id = int(uid)
                     break
@@ -577,7 +581,11 @@ async def close_ticket(channel: discord.TextChannel, closer: discord.User, reaso
 
     # Remove ticket from tickets_data
     for uid, user_tickets in list(tickets_data.items()):
+        if not isinstance(user_tickets, list):
+            continue
         for i, ticket in enumerate(user_tickets):
+            if not isinstance(ticket, dict):
+                continue
             if int(ticket.get("channel_id", 0)) == channel.id:
                 user_tickets.pop(i)
                 if not user_tickets:
@@ -605,7 +613,11 @@ async def closefail_ticket(channel: discord.TextChannel, closer: Optional[discor
     # DM the user politely
     user = None
     for uid, user_tickets in tickets_data.items():
+        if not isinstance(user_tickets, list):
+            continue
         for ticket in user_tickets:
+            if not isinstance(ticket, dict):
+                continue
             if int(ticket.get("channel_id", 0)) == channel.id:
                 try:
                     user = await bot.fetch_user(int(uid))
@@ -725,7 +737,11 @@ async def check_ticket_inactivity():
                             # Find ticket creator to ping
                             mention = "@here"  # fallback
                             for uid, user_tickets in tickets_data.items():
+                                if not isinstance(user_tickets, list):
+                                    continue
                                 for ticket in user_tickets:
+                                    if not isinstance(ticket, dict):
+                                        continue
                                     if int(ticket.get("channel_id", 0)) == channel.id:
                                         user_id = ticket.get("user_id")
                                         if user_id:
@@ -1008,7 +1024,11 @@ async def slash_close(interaction: discord.Interaction, channel: Optional[discor
     user = None
     ticket_amount = 0.0
     for uid, user_tickets in tickets_data.items():
+        if not isinstance(user_tickets, list):
+            continue
         for ticket in user_tickets:
+            if not isinstance(ticket, dict):
+                continue
             if int(ticket.get("channel_id", 0)) == target.id:
                 ticket_amount = ticket.get("total_cost", 0.0)
                 try:
@@ -1068,7 +1088,7 @@ async def prefix_close(ctx: commands.Context, channel: Optional[discord.TextChan
         if not isinstance(user_tickets, list):
             continue
         for ticket in user_tickets:
-            if isinstance(ticket, dict) and ticket.get("channel_id") == target.id:
+            if isinstance(ticket, dict) and int(ticket.get("channel_id", 0)) == target.id:
                 ticket_amount = ticket.get("total_cost", 0.0)
                 try:
                     user = await bot.fetch_user(int(uid))
@@ -1352,7 +1372,11 @@ async def handle_confirmation(user, channel, is_prefix=False, interaction=None):
     ticket_id = None
     ticket = None
     for uid, user_tickets in tickets.items():
+        if not isinstance(user_tickets, list):
+            continue
         for t in user_tickets:
+            if not isinstance(t, dict):
+                continue
             if int(t.get("channel_id", 0)) == channel.id:
                 ticket_id = uid
                 ticket = t
