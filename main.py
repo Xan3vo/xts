@@ -1021,31 +1021,18 @@ async def slash_close(interaction: discord.Interaction, channel: Optional[discor
         break
 
     if user:
+        dm_message = "✅ **This transaction has been completed!**\n\nIt has been a pleasure doing business with you! Feel free to vouch 💖\n\n**HOW TO VOUCH:**\n➡️ [Go to the vouch channel](https://discord.com/channels/945694600377552916/965514182986452992)\n\n**Be very detailed on your vouches to Shiba!**\n\n__Example:__\n+Vouch <@1183784957232029742> (items) (price) (your feedback) (photo/proof)\n\n+Vouch <@1183784957232029742> 20,000 Robux via Group Payout, 110$! Very Fast. (Attached an image/photo)\n\n📌 **Please follow the exact format including the '+' as it registers to a bot.**"
+
+        embed = discord.Embed(
+            title="Transaction Completed 🎉",
+            description=dm_message,
+            color=discord.Color.green()
+        )
+
         try:
-            dm_message = (
-                "✅ **This transaction has been completed!**\n\n"
-                "It has been a pleasure doing business with you! "
-                "Feel free to vouch 💖\n\n"
-                "**HOW TO VOUCH:**\n"
-                "➡️ [Go to the vouch channel](https://discord.com/channels/945694600377552916/965514182986452992)\n\n"
-                "**Be very detailed on your vouches to Shiba!**\n\n"
-                "__Example:__\n"
-                "+Vouch <@1183784957232029742> (items) (price) (your feedback) (photo/proof)\n\n"
-                "+Vouch <@1183784957232029742> 20,000 Robux via Group Payout, 110$! Very Fast. "
-                "(Attached an image/photo)\n\n"
-                "📌 **Please follow the exact format including the '+' as it registers to a bot.**"
-    )
-
-    embed = discord.Embed(
-        title="Transaction Completed 🎉",
-        description=dm_message,
-        color=discord.Color.green()
-    )
-
-    try:
-        await user.send(embed=embed)
-    except Exception as e:
-        print(f"Could not DM user: {e}")
+            await user.send(embed=embed)
+        except Exception as e:
+            print(f"Could not DM user: {e}")
 
     # Update accounting JSON
     if ticket_amount > 0:
