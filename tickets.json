@@ -1179,21 +1179,6 @@
       "warn_time": null
     }
   ],
-  "717394742454779944": [
-    {
-      "channel_id": 1457178669675184139,
-      "user_id": 717394742454779944,
-      "created_at": "2026-01-04T01:07:48.103463+00:00",
-      "last_activity": "2026-01-04T01:10:18.526886+00:00",
-      "delivery_type": "Other",
-      "subtype": null,
-      "payment_method": "N/A",
-      "amount": 0,
-      "total_cost": 0.0,
-      "warned": false,
-      "warn_time": null
-    }
-  ],
   "1322691686190551113": [
     {
       "channel_id": 1457178855537250592,
@@ -1317,7 +1302,7 @@
       "channel_id": 1457233213608038401,
       "user_id": 822718868563951648,
       "created_at": "2026-01-04T04:44:32.455268+00:00",
-      "last_activity": "2026-01-04T11:15:39.244022+00:00",
+      "last_activity": "2026-01-04T13:23:15.910099+00:00",
       "delivery_type": "Robux",
       "subtype": "groupfunds",
       "payment_method": "paypal",
@@ -1377,7 +1362,7 @@
       "channel_id": 1457332489239396527,
       "user_id": 787727025501765653,
       "created_at": "2026-01-04T11:19:02.094600+00:00",
-      "last_activity": "2026-01-04T11:19:02.094609+00:00",
+      "last_activity": "2026-01-04T13:24:32.909915+00:00",
       "delivery_type": "Other",
       "subtype": null,
       "payment_method": "N/A",
@@ -1392,7 +1377,7 @@
       "channel_id": 1457337999057748121,
       "user_id": 284693761592655873,
       "created_at": "2026-01-04T11:40:55.228146+00:00",
-      "last_activity": "2026-01-04T11:41:22.590678+00:00",
+      "last_activity": "2026-01-04T13:24:17.445713+00:00",
       "delivery_type": "Other",
       "subtype": null,
       "payment_method": "N/A",
@@ -1407,7 +1392,7 @@
       "channel_id": 1457349605128802355,
       "user_id": 990374113950445578,
       "created_at": "2026-01-04T12:27:02.387707+00:00",
-      "last_activity": "2026-01-04T12:46:33.810589+00:00",
+      "last_activity": "2026-01-04T13:23:33.256036+00:00",
       "delivery_type": "Robux",
       "subtype": "ingame",
       "payment_method": "paypal",
@@ -1422,7 +1407,7 @@
       "channel_id": 1457353740943228929,
       "user_id": 394526596108779520,
       "created_at": "2026-01-04T12:43:28.435081+00:00",
-      "last_activity": "2026-01-04T12:43:43.008087+00:00",
+      "last_activity": "2026-01-04T13:23:22.173197+00:00",
       "delivery_type": "Robux",
       "subtype": "groupfunds",
       "payment_method": "crypto",
