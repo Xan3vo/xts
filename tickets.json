@@ -1386,5 +1386,20 @@
       "warned": false,
       "warn_time": null
     }
+  ],
+  "284693761592655873": [
+    {
+      "channel_id": 1457337999057748121,
+      "user_id": 284693761592655873,
+      "created_at": "2026-01-04T11:40:55.228146+00:00",
+      "last_activity": "2026-01-04T11:41:22.590678+00:00",
+      "delivery_type": "Other",
+      "subtype": null,
+      "payment_method": "N/A",
+      "amount": 0,
+      "total_cost": 0.0,
+      "warned": false,
+      "warn_time": null
+    }
   ]
 }
