@@ -1317,7 +1317,7 @@
       "channel_id": 1457233213608038401,
       "user_id": 822718868563951648,
       "created_at": "2026-01-04T04:44:32.455268+00:00",
-      "last_activity": "2026-01-04T09:39:46.798715+00:00",
+      "last_activity": "2026-01-04T11:15:39.244022+00:00",
       "delivery_type": "Robux",
       "subtype": "groupfunds",
       "payment_method": "paypal",
@@ -1368,6 +1368,21 @@
       "payment_method": "paypal",
       "amount": 7500,
       "total_cost": 39.6,
+      "warned": false,
+      "warn_time": null
+    }
+  ],
+  "787727025501765653": [
+    {
+      "channel_id": 1457332489239396527,
+      "user_id": 787727025501765653,
+      "created_at": "2026-01-04T11:19:02.094600+00:00",
+      "last_activity": "2026-01-04T11:19:02.094609+00:00",
+      "delivery_type": "Other",
+      "subtype": null,
+      "payment_method": "N/A",
+      "amount": 0,
+      "total_cost": 0.0,
       "warned": false,
       "warn_time": null
     }
