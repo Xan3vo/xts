@@ -134,12 +134,43 @@ def write_json(path: str, data: Any):
 
 async def push_tickets_to_git():
     try:
-        subprocess.run(["git", "add", "tickets.json"], check=True, cwd=os.getcwd())
-        result = subprocess.run(["git", "commit", "-m", "Update tickets"], check=False, cwd=os.getcwd())
-        if result.returncode == 0 or "nothing to commit" in result.stdout.decode() if result.stdout else False:
-            subprocess.run(["git", "push"], check=True, cwd=os.getcwd())
-    except subprocess.CalledProcessError as e:
-        print(f"Git command failed: {e}")
+        print("Attempting to push tickets to git")
+        # Run git commands asynchronously
+        process = await asyncio.create_subprocess_shell(
+            "git add tickets.json",
+            cwd=os.getcwd(),
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE
+        )
+        await process.wait()
+        if process.returncode != 0:
+            print(f"Git add failed: {process.returncode}")
+            return
+
+        process = await asyncio.create_subprocess_shell(
+            "git commit -m 'Update tickets'",
+            cwd=os.getcwd(),
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE
+        )
+        await process.wait()
+        if process.returncode == 0:
+            # Commit succeeded, now push
+            process = await asyncio.create_subprocess_shell(
+                "git push",
+                cwd=os.getcwd(),
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE
+            )
+            await process.wait()
+            if process.returncode == 0:
+                print("Successfully pushed tickets to git")
+            else:
+                print(f"Git push failed: {process.returncode}")
+        elif "nothing to commit" in (await process.stdout.read()).decode():
+            print("No changes to commit for tickets")
+        else:
+            print(f"Git commit failed: {process.returncode}")
     except Exception as e:
         print(f"Error pushing to git: {e}")
 
