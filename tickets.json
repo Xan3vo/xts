@@ -1426,12 +1426,27 @@
       "channel_id": 1457432323493462197,
       "user_id": 747066584090279938,
       "created_at": "2026-01-04T17:55:43.909641+00:00",
-      "last_activity": "2026-01-04T17:59:22.434164+00:00",
+      "last_activity": "2026-01-04T18:04:14.271721+00:00",
       "delivery_type": "Robux",
       "subtype": "groupfunds",
       "payment_method": "binance",
       "amount": 11000,
       "total_cost": 68.75,
+      "warned": false,
+      "warn_time": null
+    }
+  ],
+  "705804974738636890": [
+    {
+      "channel_id": 1457433788458991626,
+      "user_id": 705804974738636890,
+      "created_at": "2026-01-04T18:01:33.168035+00:00",
+      "last_activity": "2026-01-04T18:04:35.678138+00:00",
+      "delivery_type": "Robux",
+      "subtype": "groupfunds",
+      "payment_method": "paypal",
+      "amount": 2000,
+      "total_cost": 13.75,
       "warned": false,
       "warn_time": null
     }
