@@ -1107,24 +1107,27 @@ async def prefix_close(ctx: commands.Context, channel: Optional[discord.TextChan
     # DM user before closing
     user = None
     ticket_amount = 0.0
+    ticket_found = False
+    uid_found = None
     for uid, user_tickets in tickets_data.items():
         if not isinstance(user_tickets, list):
             continue
         for ticket in user_tickets:
             if isinstance(ticket, dict) and int(ticket.get("channel_id", 0)) == target.id:
                 ticket_amount = ticket.get("total_cost", 0.0)
+                ticket_found = True
+                uid_found = uid
                 try:
                     user = await bot.fetch_user(int(uid))
                 except Exception:
                     user = None
                 break
-        else:
-            continue
-        break
+        if ticket_found:
+            break
 
     if not user:
-        await ctx.send("This is not a ticket channel.")
-        return
+        await ctx.send("Ticket found, but could not fetch user. Proceeding with close.")
+        # Still close the ticket
 
     dm_message = (
         "✅ **This transaction has been completed!**\n\n"
@@ -1152,8 +1155,8 @@ async def prefix_close(ctx: commands.Context, channel: Optional[discord.TextChan
         print(f"Could not DM user: {e}")
 
     # Update accounting JSON
-    if ticket_amount > 0:
-        add_to_user_spent(user.id, ticket_amount)
+    if ticket_amount > 0 and uid_found:
+        add_to_user_spent(int(uid_found), ticket_amount)
 
     # Close the ticket
     await close_ticket(target, closer=ctx.author, reason="Manual close (!close command)")
