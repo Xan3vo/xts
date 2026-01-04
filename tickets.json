@@ -1138,21 +1138,6 @@
     "warned": false,
     "warn_time": null
   },
-  "1304591652500930701": [
-    {
-      "channel_id": 1457174698181005342,
-      "user_id": 1304591652500930701,
-      "created_at": "2026-01-04T00:52:01.241306+00:00",
-      "last_activity": "2026-01-04T14:19:45.965422+00:00",
-      "delivery_type": "Robux",
-      "subtype": "groupfunds",
-      "payment_method": "crypto",
-      "amount": 3000,
-      "total_cost": 18.75,
-      "warned": false,
-      "warn_time": null
-    }
-  ],
   "1322691686190551113": [
     {
       "channel_id": 1457178855537250592,
@@ -1271,21 +1256,6 @@
       "warn_time": null
     }
   ],
-  "1064306318225195130": [
-    {
-      "channel_id": 1457275061571555487,
-      "user_id": 1064306318225195130,
-      "created_at": "2026-01-04T07:30:49.954262+00:00",
-      "last_activity": "2026-01-04T18:43:54.445544+00:00",
-      "delivery_type": "Robux",
-      "subtype": "ingame",
-      "payment_method": "paypal",
-      "amount": 7500,
-      "total_cost": 39.6,
-      "warned": false,
-      "warn_time": null
-    }
-  ],
   "787727025501765653": [
     {
       "channel_id": 1457332489239396527,
@@ -1376,21 +1346,6 @@
       "warn_time": null
     }
   ],
-  "650961487434874880": [
-    {
-      "channel_id": 1457409497772589132,
-      "user_id": 650961487434874880,
-      "created_at": "2026-01-04T16:25:02.037624+00:00",
-      "last_activity": "2026-01-04T18:43:24.459308+00:00",
-      "delivery_type": "Robux",
-      "subtype": "ingame",
-      "payment_method": "wise",
-      "amount": 3148,
-      "total_cost": 15.1104,
-      "warned": false,
-      "warn_time": null
-    }
-  ],
   "817869723412070412": [
     {
       "channel_id": 1457430806959095993,
@@ -1441,7 +1396,7 @@
       "channel_id": 1457442867189645373,
       "user_id": 383958288993091589,
       "created_at": "2026-01-04T18:37:37.678205+00:00",
-      "last_activity": "2026-01-04T18:41:06.727598+00:00",
+      "last_activity": "2026-01-04T18:45:28.684921+00:00",
       "delivery_type": "Robux",
       "subtype": "groupfunds",
       "payment_method": "binance",
