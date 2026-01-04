@@ -1155,19 +1155,6 @@
   ],
   "517859650172092425": [
     {
-      "channel_id": 1457190518663544913,
-      "user_id": 517859650172092425,
-      "created_at": "2026-01-04T01:54:53.119677+00:00",
-      "last_activity": "2026-01-04T08:49:00.986118+00:00",
-      "delivery_type": "Robux",
-      "subtype": "groupfunds",
-      "payment_method": "crypto",
-      "amount": 2000,
-      "total_cost": 12.5,
-      "warned": false,
-      "warn_time": null
-    },
-    {
       "channel_id": 1457197827179675749,
       "user_id": 517859650172092425,
       "created_at": "2026-01-04T02:23:55.804981+00:00",
@@ -1196,21 +1183,6 @@
       "warn_time": null
     }
   ],
-  "650017074923438080": [
-    {
-      "channel_id": 1457206720207126588,
-      "user_id": 650017074923438080,
-      "created_at": "2026-01-04T02:59:16.102641+00:00",
-      "last_activity": "2026-01-04T14:10:34.810351+00:00",
-      "delivery_type": "Robux",
-      "subtype": "groupfunds",
-      "payment_method": "paypal",
-      "amount": 10000,
-      "total_cost": 68.75,
-      "warned": false,
-      "warn_time": null
-    }
-  ],
   "920522447965544551": [
     {
       "channel_id": 1457213879498047641,
@@ -1231,7 +1203,7 @@
       "channel_id": 1457233213608038401,
       "user_id": 822718868563951648,
       "created_at": "2026-01-04T04:44:32.455268+00:00",
-      "last_activity": "2026-01-04T14:12:47.319689+00:00",
+      "last_activity": "2026-01-04T19:13:43.913555+00:00",
       "delivery_type": "Robux",
       "subtype": "groupfunds",
       "payment_method": "paypal",
