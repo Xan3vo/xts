@@ -18,6 +18,7 @@ from datetime import datetime, timezone, timedelta
 from typing import Optional, Dict, Any, List
 import aiohttp
 import sys
+import io
 
 # ---------------------------
 # Config (from user)
@@ -93,10 +94,6 @@ STICKY_JSON = "stickymessages.json"
 STICKY_IDS_JSON = "sticky_message_ids.json"
 TICKET_JSON = "tickets.json"
 PENDING_CLOSES_JSON = "pending_closes.json"
-TRANSCRIPTS_DIR = "transcripts"
-
-# create transcripts dir if missing
-os.makedirs(TRANSCRIPTS_DIR, exist_ok=True)
 
 
 # Helper: read/write accounting JSON
@@ -557,29 +554,28 @@ async def close_ticket(channel: discord.TextChannel, closer: discord.User, reaso
         transcript_lines.append(line)
     transcript_text = "\n".join(transcript_lines) if transcript_lines else "No messages."
 
-    # Save to file
+    # Create transcript content
     ts = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
-    filename = f"{TRANSCRIPTS_DIR}/transcript_{channel.id}_{ts}.txt"
-    with open(filename, "w", encoding="utf-8") as f:
-        f.write(f"Transcript for channel {channel.name} ({channel.id})\n")
-        f.write(f"Closed by: {closer} ({closer.id})\n")
-        if reason:
-            f.write(f"Reason: {reason}\n")
-        f.write("="*40 + "\n\n")
-        f.write(transcript_text)
+    content = f"Transcript for channel {channel.name} ({channel.id})\n"
+    content += f"Closed by: {closer} ({closer.id})\n"
+    if reason:
+        content += f"Reason: {reason}\n"
+    content += "="*40 + "\n\n"
+    content += transcript_text
 
-    # Send to log channel
+    # Send to log channel as file (in memory)
     try:
         log_chan = guild.get_channel(LOG_CHANNEL_ID) or await bot.fetch_channel(LOG_CHANNEL_ID)
     except Exception:
         log_chan = None
     if log_chan:
         try:
-            file = discord.File(fp=filename, filename=os.path.basename(filename))
-            await log_chan.send(content=f"Ticket closed: {channel.name} • Closed by: {closer} ({closer.id})", file=file)
+            bio = io.BytesIO(content.encode('utf-8'))
+            file = discord.File(bio, filename=f"transcript_{channel.id}_{ts}.txt")
+            await log_chan.send(content=f"Ticket closed: {channel.name} • Closed by: {closer.mention} ({closer.id})", file=file)
         except Exception:
             # fallback to posting a message
-            await log_chan.send(f"Ticket closed: {channel.name} • Closed by: {closer} ({closer.id})\nTranscript saved at {filename}")
+            await log_chan.send(f"Ticket closed: {channel.name} • Closed by: {closer} ({closer.id})\nTranscript:\n{content[:1900]}...")  # truncate if too long
 
     # Remove ticket from tickets_data
     for uid, user_tickets in list(tickets_data.items()):
