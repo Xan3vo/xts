@@ -322,14 +322,18 @@ class RobuxAmountModal(Modal):
         self.add_item(self.amount)
 
     async def on_submit(self, interaction: discord.Interaction):
-        # validate amount
-        raw = self.amount.value.strip().replace(",", "")
-        if not raw.isdigit():
-            await interaction.response.send_message("Amount must be an integer number of Robux.", ephemeral=True)
-            return
-        amount = int(raw)
-        # call ticket creation
-        await create_ticket_for_user(interaction, delivery_type="Robux", subtype=self.subtype, payment_method=self.payment_method, amount=amount)
+        try:
+            # validate amount
+            raw = self.amount.value.strip().replace(",", "")
+            if not raw.isdigit():
+                await interaction.response.send_message("Amount must be an integer number of Robux.", ephemeral=True)
+                return
+            amount = int(raw)
+            # call ticket creation
+            await create_ticket_for_user(interaction, delivery_type="Robux", subtype=self.subtype, payment_method=self.payment_method, amount=amount)
+        except Exception as e:
+            print(f"Error in RobuxAmountModal.on_submit: {e}")
+            await interaction.response.send_message("An error occurred while creating the ticket. Please try again or contact support.", ephemeral=True)
 
 class OtherTicketModal(Modal):
     def __init__(self):
@@ -338,8 +342,12 @@ class OtherTicketModal(Modal):
         self.add_item(self.details)
 
     async def on_submit(self, interaction: discord.Interaction):
-        content = self.details.value.strip()
-        await create_ticket_for_user(interaction, delivery_type="Other", subtype=None, payment_method="N/A", amount=0, extra_notes=content)
+        try:
+            content = self.details.value.strip()
+            await create_ticket_for_user(interaction, delivery_type="Other", subtype=None, payment_method="N/A", amount=0, extra_notes=content)
+        except Exception as e:
+            print(f"Error in OtherTicketModal.on_submit: {e}")
+            await interaction.response.send_message("An error occurred while creating the ticket. Please try again or contact support.", ephemeral=True)
 
 # ---------------------------
 # Ticket creation & flow
@@ -978,13 +986,8 @@ async def send_ticket_panel(channel: discord.TextChannel):
     embed.add_field(name="Other", value="Other support requests.", inline=False)
     await channel.send(embed=embed, view=view)
 
-@bot.tree.command(name="ticket-panel", description="Send the ticket creation panel (admins only)")
+@bot.tree.command(name="ticket-panel", description="Send the ticket creation panel")
 async def ticket_panel(interaction: discord.Interaction):
-    # check admin role
-    member = interaction.user
-    if not isinstance(member, discord.Member) or not is_admin_member(member):
-        await interaction.response.send_message("You do not have permission to run this command.", ephemeral=True)
-        return
     view = TicketPanelView()
     embed = discord.Embed(title="Create a Ticket", description="Select the ticket type below to start.", color=discord.Color.green())
     embed.add_field(name="Robux", value="Buy Robux (Gamepass / Group Funds / In-Game).", inline=False)
