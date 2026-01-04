@@ -1174,7 +1174,7 @@ async def on_message(message: discord.Message):
             sticky_tasks[ch_id].cancel()
         # Create new task
         async def send_sticky():
-            await asyncio.sleep(0)  # Changed to 0 for testing
+            await asyncio.sleep(3)  # Delay before sending sticky message
             try:
                 # Delete old sticky message if exists
                 if ch_id in sticky_message_ids:
