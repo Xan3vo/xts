@@ -128,6 +128,9 @@ def read_json(path: str) -> Any:
 def write_json(path: str, data: Any):
     with open(path, "w", encoding="utf-8") as f:
         json.dump(data, f, indent=2, default=str)
+    # Commit immediately after writing tickets.json
+    if path == TICKET_JSON:
+        asyncio.create_task(push_tickets_to_git())
 
 async def push_tickets_to_git():
     try:
@@ -155,7 +158,6 @@ async def pull_tickets_from_git():
             if not tickets_data[uid]:
                 del tickets_data[uid]
         write_json(TICKET_JSON, tickets_data)
-        await push_tickets_to_git()
     except subprocess.CalledProcessError as e:
         print(f"Git pull failed: {e}")
     except Exception as e:
@@ -408,7 +410,6 @@ async def create_ticket_for_user(interaction: discord.Interaction, delivery_type
     user_tickets = active_tickets
     tickets_data[user_key] = user_tickets
     write_json(TICKET_JSON, tickets_data)
-    await push_tickets_to_git()
 
     # Determine category key and channel name
     category_key = "other"
@@ -494,7 +495,6 @@ async def create_ticket_for_user(interaction: discord.Interaction, delivery_type
     user_tickets.append(ticket_info)
     tickets_data[user_key] = user_tickets
     write_json(TICKET_JSON, tickets_data)
-    await push_tickets_to_git()
 
     # Post ticket info embed in the ticket channel
     embed = ticket_info_embed(user=user, delivery_type=delivery_type, subtype=(subtype_key or "N/A"),
@@ -635,7 +635,6 @@ async def close_ticket(channel: discord.TextChannel, closer: discord.User, reaso
                 if not user_tickets:
                     tickets_data.pop(uid, None)
                 write_json(TICKET_JSON, tickets_data)
-                await push_tickets_to_git()
                 break
         else:
             continue
@@ -1222,12 +1221,10 @@ async def on_message(message: discord.Message):
                     ticket["warned"] = False
                     ticket["warn_time"] = None
                     write_json(TICKET_JSON, tickets_data)
-                    await push_tickets_to_git()
                 # also update if support replies? spec said track messages by ticket owner; but let's update last_activity on any new messages in ticket channel
                 else:
                     ticket["last_activity"] = datetime.now(timezone.utc).isoformat()
                     write_json(TICKET_JSON, tickets_data)
-                    await push_tickets_to_git()
                 break
         else:
             continue
@@ -1327,7 +1324,6 @@ async def check_inactivity():
                 print("Inactivity check error for ticket", uid, e)
     if changed:
         write_json(TICKET_JSON, tickets)
-        await push_tickets_to_git()
         # also update in-memory
         global tickets_data
         tickets_data = tickets
