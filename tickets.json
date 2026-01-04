@@ -1169,7 +1169,7 @@
       "channel_id": 1457174698181005342,
       "user_id": 1304591652500930701,
       "created_at": "2026-01-04T00:52:01.241306+00:00",
-      "last_activity": "2026-01-04T02:39:31.737442+00:00",
+      "last_activity": "2026-01-04T14:10:28.609994+00:00",
       "delivery_type": "Robux",
       "subtype": "groupfunds",
       "payment_method": "crypto",
@@ -1257,7 +1257,7 @@
       "channel_id": 1457206720207126588,
       "user_id": 650017074923438080,
       "created_at": "2026-01-04T02:59:16.102641+00:00",
-      "last_activity": "2026-01-04T03:03:13.313803+00:00",
+      "last_activity": "2026-01-04T14:10:34.810351+00:00",
       "delivery_type": "Robux",
       "subtype": "groupfunds",
       "payment_method": "paypal",
@@ -1302,7 +1302,7 @@
       "channel_id": 1457233213608038401,
       "user_id": 822718868563951648,
       "created_at": "2026-01-04T04:44:32.455268+00:00",
-      "last_activity": "2026-01-04T13:23:15.910099+00:00",
+      "last_activity": "2026-01-04T14:12:47.319689+00:00",
       "delivery_type": "Robux",
       "subtype": "groupfunds",
       "payment_method": "paypal",
@@ -1317,7 +1317,7 @@
       "channel_id": 1457245609823174706,
       "user_id": 1178421370632290416,
       "created_at": "2026-01-04T05:33:48.231402+00:00",
-      "last_activity": "2026-01-04T12:23:13.644115+00:00",
+      "last_activity": "2026-01-04T14:01:26.855194+00:00",
       "delivery_type": "Robux",
       "subtype": "ingame",
       "payment_method": "paypal",
@@ -1413,6 +1413,21 @@
       "payment_method": "crypto",
       "amount": 4000,
       "total_cost": 25.0,
+      "warned": false,
+      "warn_time": null
+    }
+  ],
+  "474815511671078913": [
+    {
+      "channel_id": 1457375488824578058,
+      "user_id": 474815511671078913,
+      "created_at": "2026-01-04T14:09:53.399980+00:00",
+      "last_activity": "2026-01-04T14:12:08.654381+00:00",
+      "delivery_type": "Robux",
+      "subtype": "groupfunds",
+      "payment_method": "bank",
+      "amount": 1000,
+      "total_cost": 6.25,
       "warned": false,
       "warn_time": null
     }
