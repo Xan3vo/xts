@@ -941,6 +941,25 @@ async def on_ready():
         print("Failed to sync commands:", e)
     check_inactivity.start()
 
+    # Clean up old sticky messages and resend new ones on restart
+    for ch_id, msg_id in list(sticky_message_ids.items()):
+        channel = bot.get_channel(int(ch_id))
+        if channel and ch_id in sticky_messages:
+            try:
+                # Delete old sticky
+                old_msg = await channel.fetch_message(msg_id)
+                await old_msg.delete()
+            except Exception:
+                pass
+            try:
+                # Send new sticky
+                new_msg = await channel.send(sticky_messages[ch_id])
+                sticky_message_ids[ch_id] = new_msg.id
+            except Exception as e:
+                print(f"Failed to send sticky to {ch_id}: {e}")
+    # Save updated IDs
+    write_json(STICKY_IDS_JSON, sticky_message_ids)
+
 # /ticket-panel - admin only to send the panel
 class AdminOnly(app_commands.CheckFailure):
     pass
