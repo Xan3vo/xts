@@ -1178,5 +1178,35 @@
       "warned": false,
       "warn_time": null
     }
+  ],
+  "717394742454779944": [
+    {
+      "channel_id": 1457178669675184139,
+      "user_id": 717394742454779944,
+      "created_at": "2026-01-04T01:07:48.103463+00:00",
+      "last_activity": "2026-01-04T01:10:00.165774+00:00",
+      "delivery_type": "Other",
+      "subtype": null,
+      "payment_method": "N/A",
+      "amount": 0,
+      "total_cost": 0.0,
+      "warned": false,
+      "warn_time": null
+    }
+  ],
+  "1322691686190551113": [
+    {
+      "channel_id": 1457178855537250592,
+      "user_id": 1322691686190551113,
+      "created_at": "2026-01-04T01:08:32.588880+00:00",
+      "last_activity": "2026-01-04T01:09:02.170746+00:00",
+      "delivery_type": "Other",
+      "subtype": null,
+      "payment_method": "N/A",
+      "amount": 0,
+      "total_cost": 0.0,
+      "warned": false,
+      "warn_time": null
+    }
   ]
 }
