@@ -146,6 +146,16 @@ async def pull_tickets_from_git():
         # Reload tickets_data after pull
         global tickets_data
         tickets_data = read_json(TICKET_JSON) or {}
+        # Clean invalid entries
+        for uid, user_tickets in list(tickets_data.items()):
+            if not isinstance(user_tickets, list):
+                del tickets_data[uid]
+                continue
+            tickets_data[uid] = [t for t in user_tickets if isinstance(t, dict)]
+            if not tickets_data[uid]:
+                del tickets_data[uid]
+        write_json(TICKET_JSON, tickets_data)
+        await push_tickets_to_git()
     except subprocess.CalledProcessError as e:
         print(f"Git pull failed: {e}")
     except Exception as e:
@@ -390,7 +400,7 @@ async def create_ticket_for_user(interaction: discord.Interaction, delivery_type
     global tickets_data
     user_key = str(user.id)
     user_tickets = tickets_data.get(user_key, [])
-    active_tickets = [t for t in user_tickets if guild.get_channel(int(t.get("channel_id", 0))) is not None]
+    active_tickets = [t for t in user_tickets if isinstance(t, dict) and guild.get_channel(int(t.get("channel_id", 0))) is not None]
     if len(active_tickets) >= 3:
         await interaction.response.send_message("You can have up to 3 active tickets.", ephemeral=True)
         return
@@ -1263,6 +1273,8 @@ async def check_inactivity():
     changed = False
     for uid, user_tickets in list(tickets.items()):
         for i, data in enumerate(user_tickets):
+            if not isinstance(data, dict):
+                continue
             try:
                 last_str = data.get("last_activity")
                 if not last_str:
