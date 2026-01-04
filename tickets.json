@@ -1021,19 +1021,6 @@
     "warned": false,
     "warn_time": null
   },
-  "383958288993091589": {
-    "channel_id": 1456962270306238579,
-    "user_id": 383958288993091589,
-    "created_at": "2026-01-03T10:47:54.531011+00:00",
-    "last_activity": "2026-01-03T14:09:14.551011+00:00",
-    "delivery_type": "Robux",
-    "subtype": "groupfunds",
-    "payment_method": "binance",
-    "amount": 3000,
-    "total_cost": 18.75,
-    "warned": false,
-    "warn_time": null
-  },
   "916803536023593020": {
     "channel_id": 1457032050061213706,
     "user_id": 916803536023593020,
