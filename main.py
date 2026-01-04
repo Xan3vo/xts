@@ -90,6 +90,7 @@ def write_payment_fees():
 
 PAYMENT_JSON = "payment_info.json"
 STICKY_JSON = "stickymessages.json"
+STICKY_IDS_JSON = "sticky_message_ids.json"
 TICKET_JSON = "tickets.json"
 PENDING_CLOSES_JSON = "pending_closes.json"
 TRANSCRIPTS_DIR = "transcripts"
@@ -157,7 +158,7 @@ if not os.path.exists(STICKY_JSON):
 # Load sticky messages
 sticky_messages: Dict[str, str] = read_json(STICKY_JSON) or {}
 sticky_tasks: Dict[str, asyncio.Task] = {}
-sticky_message_ids: Dict[str, int] = {}
+sticky_message_ids: Dict[str, int] = read_json(STICKY_IDS_JSON) or {}
 
 # ---------------------------
 # Intents & Bot Setup
@@ -1189,6 +1190,7 @@ async def on_message(message: discord.Message):
                 # Send new sticky message
                 msg = await chan.send(sticky_messages[ch_id])
                 sticky_message_ids[ch_id] = msg.id
+                write_json(STICKY_IDS_JSON, sticky_message_ids)
             except Exception as e:
                 print(f"Failed to send sticky to {chan.id}: {e}")
             sticky_tasks.pop(ch_id, None)
@@ -1314,11 +1316,33 @@ class StickyEditModal(Modal):
 
     async def on_submit(self, interaction: discord.Interaction):
         msg = self.message.value.strip()
-        if msg:
-            sticky_messages[self.ch_id] = msg
+        ch_id = self.ch_id
+        channel = bot.get_channel(int(ch_id))
+        if channel:
+            # Delete old sticky message if exists
+            if ch_id in sticky_message_ids:
+                try:
+                    old_msg = await channel.fetch_message(sticky_message_ids[ch_id])
+                    await old_msg.delete()
+                except Exception:
+                    pass
+                sticky_message_ids.pop(ch_id, None)
+            # If new message, send it and save ID
+            if msg:
+                sticky_messages[ch_id] = msg
+                new_msg = await channel.send(msg)
+                sticky_message_ids[ch_id] = new_msg.id
+            else:
+                sticky_messages.pop(ch_id, None)
         else:
-            sticky_messages.pop(self.ch_id, None)
+            # If channel not found, just update dicts
+            if msg:
+                sticky_messages[ch_id] = msg
+            else:
+                sticky_messages.pop(ch_id, None)
+                sticky_message_ids.pop(ch_id, None)
         write_json(STICKY_JSON, sticky_messages)
+        write_json(STICKY_IDS_JSON, sticky_message_ids)
         await interaction.response.send_message("Sticky message updated.", ephemeral=True)
 
 
