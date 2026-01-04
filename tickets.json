@@ -1184,7 +1184,7 @@
       "channel_id": 1457178669675184139,
       "user_id": 717394742454779944,
       "created_at": "2026-01-04T01:07:48.103463+00:00",
-      "last_activity": "2026-01-04T01:10:00.165774+00:00",
+      "last_activity": "2026-01-04T01:10:18.526886+00:00",
       "delivery_type": "Other",
       "subtype": null,
       "payment_method": "N/A",
@@ -1199,12 +1199,42 @@
       "channel_id": 1457178855537250592,
       "user_id": 1322691686190551113,
       "created_at": "2026-01-04T01:08:32.588880+00:00",
-      "last_activity": "2026-01-04T01:09:02.170746+00:00",
+      "last_activity": "2026-01-04T01:14:50.162630+00:00",
       "delivery_type": "Other",
       "subtype": null,
       "payment_method": "N/A",
       "amount": 0,
       "total_cost": 0.0,
+      "warned": false,
+      "warn_time": null
+    }
+  ],
+  "1183784957232029742": [
+    {
+      "channel_id": 1457180171365908584,
+      "user_id": 1183784957232029742,
+      "created_at": "2026-01-04T01:13:46.286402+00:00",
+      "last_activity": "2026-01-04T01:14:03.221179+00:00",
+      "delivery_type": "Robux",
+      "subtype": "ingame",
+      "payment_method": "chime",
+      "amount": 12000,
+      "total_cost": 61.63199999999999,
+      "warned": false,
+      "warn_time": null
+    }
+  ],
+  "1326641153864368260": [
+    {
+      "channel_id": 1457180342661419029,
+      "user_id": 1326641153864368260,
+      "created_at": "2026-01-04T01:14:27.155759+00:00",
+      "last_activity": "2026-01-04T01:14:32.977301+00:00",
+      "delivery_type": "Robux",
+      "subtype": "gamepass",
+      "payment_method": "wise",
+      "amount": 2323,
+      "total_cost": 11.03425,
       "warned": false,
       "warn_time": null
     }
