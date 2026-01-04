@@ -117,7 +117,10 @@ def read_json(path: str) -> Any:
         return {}
     with open(path, "r", encoding="utf-8") as f:
         try:
-            return json.load(f)
+            data = json.load(f)
+            if not isinstance(data, dict):
+                return {}
+            return data
         except json.JSONDecodeError:
             return {}
 
