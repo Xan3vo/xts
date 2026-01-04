@@ -1214,7 +1214,7 @@
       "channel_id": 1457180171365908584,
       "user_id": 1183784957232029742,
       "created_at": "2026-01-04T01:13:46.286402+00:00",
-      "last_activity": "2026-01-04T02:34:23.774958+00:00",
+      "last_activity": "2026-01-04T02:59:26.645629+00:00",
       "delivery_type": "Robux",
       "subtype": "ingame",
       "payment_method": "chime",
@@ -1263,6 +1263,21 @@
       "payment_method": "N/A",
       "amount": 0,
       "total_cost": 0.0,
+      "warned": false,
+      "warn_time": null
+    }
+  ],
+  "650017074923438080": [
+    {
+      "channel_id": 1457206720207126588,
+      "user_id": 650017074923438080,
+      "created_at": "2026-01-04T02:59:16.102641+00:00",
+      "last_activity": "2026-01-04T02:59:34.541304+00:00",
+      "delivery_type": "Robux",
+      "subtype": "groupfunds",
+      "payment_method": "paypal",
+      "amount": 10000,
+      "total_cost": 68.75,
       "warned": false,
       "warn_time": null
     }
