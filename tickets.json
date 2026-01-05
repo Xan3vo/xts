@@ -828,19 +828,7 @@
     "warned": false,
     "warn_time": null
   },
-  "787426330194870272": {
-    "channel_id": 1456693670823854173,
-    "user_id": 787426330194870272,
-    "created_at": "2026-01-02T17:00:35.357522+00:00",
-    "last_activity": "2026-01-03T15:31:36.361987+00:00",
-    "delivery_type": "Other",
-    "subtype": null,
-    "payment_method": "N/A",
-    "amount": 0,
-    "total_cost": 0.0,
-    "warned": false,
-    "warn_time": null
-  },
+  "787426330194870272": [],
   "914101651294519326": {
     "channel_id": 1456730414730449128,
     "user_id": 914101651294519326,
