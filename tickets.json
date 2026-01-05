@@ -813,19 +813,7 @@
     "warned": false,
     "warn_time": null
   },
-  "1281602727901794368": {
-    "channel_id": 1456617131289481354,
-    "user_id": 1281602727901794368,
-    "created_at": "2026-01-02T11:56:26.943264+00:00",
-    "last_activity": "2026-01-02T12:44:50.598170+00:00",
-    "delivery_type": "Robux",
-    "subtype": "groupfunds",
-    "payment_method": "paypal",
-    "amount": 15000,
-    "total_cost": 103.125,
-    "warned": false,
-    "warn_time": null
-  },
+  "1281602727901794368": [],
   "1011011113846059099": {
     "channel_id": 1456654122987028491,
     "user_id": 1011011113846059099,
