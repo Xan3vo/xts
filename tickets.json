@@ -670,19 +670,7 @@
     "warned": false,
     "warn_time": null
   },
-  "405295104576978946": {
-    "channel_id": 1455979195892236422,
-    "user_id": 405295104576978946,
-    "created_at": "2025-12-31T17:41:31.368172+00:00",
-    "last_activity": "2026-01-03T19:31:53.540803+00:00",
-    "delivery_type": "Robux",
-    "subtype": "groupfunds",
-    "payment_method": "giftcard",
-    "amount": 6000,
-    "total_cost": 40.125,
-    "warned": false,
-    "warn_time": null
-  },
+  "405295104576978946": [],
   "1396099195982577664": {
     "channel_id": 1456022320396111923,
     "user_id": 1396099195982577664,
