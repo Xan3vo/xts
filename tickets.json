@@ -1502,5 +1502,19 @@
       "warn_time": null
     }
   ],
-  "1187353710741954642": []
+  "1187353710741954642": [
+    {
+      "channel_id": 1457754502492061848,
+      "user_id": 1187353710741954642,
+      "created_at": "2026-01-05T15:15:57.417207+00:00",
+      "last_activity": "2026-01-05T15:15:57.417217+00:00",
+      "delivery_type": "Robux",
+      "subtype": "groupfunds",
+      "payment_method": "paypal",
+      "amount": 1000,
+      "total_cost": 6.875,
+      "warned": false,
+      "warn_time": null
+    }
+  ]
 }
