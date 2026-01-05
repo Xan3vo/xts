@@ -1116,19 +1116,7 @@
     "warned": false,
     "warn_time": null
   },
-  "861607988158922752": {
-    "channel_id": 1457103658280943820,
-    "user_id": 861607988158922752,
-    "created_at": "2026-01-03T20:09:44.126573+00:00",
-    "last_activity": "2026-01-03T20:13:24.400208+00:00",
-    "delivery_type": "Robux",
-    "subtype": "ingame",
-    "payment_method": "crypto",
-    "amount": 8200,
-    "total_cost": 39.35999999999999,
-    "warned": false,
-    "warn_time": null
-  },
+  "861607988158922752": [],
   "1322691686190551113": [
     {
       "channel_id": 1457178855537250592,
