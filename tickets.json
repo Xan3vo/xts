@@ -1433,21 +1433,6 @@
       "warn_time": null
     }
   ],
-  "853032461121224774": [
-    {
-      "channel_id": 1457830515393564703,
-      "user_id": 853032461121224774,
-      "created_at": "2026-01-05T20:18:00.604791+00:00",
-      "last_activity": "2026-01-05T21:11:42.018476+00:00",
-      "delivery_type": "Robux",
-      "subtype": "ingame",
-      "payment_method": "chime",
-      "amount": 23786,
-      "total_cost": 122.16489600000001,
-      "warned": false,
-      "warn_time": null
-    }
-  ],
   "970022821055041537": [
     {
       "channel_id": 1457856714492612619,
