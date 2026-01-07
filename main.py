@@ -97,19 +97,6 @@ TICKET_JSON = "tickets.json"
 PENDING_CLOSES_JSON = "pending_closes.json"
 
 
-# Helper: read/write accounting JSON
-ACCOUNTING_JSON = "accounting.json"
-
-def read_accounting():
-    if not os.path.exists(ACCOUNTING_JSON):
-        return {"users": {}, "totals": {}, "methods": {}}
-    with open(ACCOUNTING_JSON, "r", encoding="utf-8") as f:
-        return json.load(f)
-
-def write_accounting(data):
-    with open(ACCOUNTING_JSON, "w", encoding="utf-8") as f:
-        json.dump(data, f, indent=4)
-
 # ---------------------------
 # Helper functions for JSON
 # ---------------------------
@@ -308,7 +295,7 @@ def select_ticket_category(guild: discord.Guild, key: str) -> Optional[discord.C
     return None
 
 # ---------------------------
-# Views / UI
+# Classes
 # ---------------------------
 
 # Main panel view - first select delivery type
@@ -419,30 +406,29 @@ class OtherTicketModal(Modal):
             await interaction.response.send_message("An error occurred while creating the ticket. Please try again or contact support.", ephemeral=True)
 
 # ---------------------------
-# Ticket creation & flow
+# Ticket Management
 # ---------------------------
-async def create_ticket_for_user(interaction: discord.Interaction, delivery_type: str, subtype: Optional[str], payment_method: str, amount: int = 0, extra_notes: Optional[str] = None):
-    """Create a ticket channel for the interaction user, enforce one-ticket-per-user, post embed & instructions."""
-    user = interaction.user
-    guild = interaction.guild
+def validate_ticket_creation(user: discord.User, guild: discord.Guild, interaction: discord.Interaction) -> Optional[List[Dict[str, Any]]]:
+    """Validate guild and check existing tickets. Returns user_tickets if valid, None if error sent."""
     if guild is None:
-        await interaction.response.send_message("This command must be used in a server (guild).", ephemeral=True)
-        return
+        asyncio.create_task(interaction.response.send_message("This command must be used in a server (guild).", ephemeral=True))
+        return None
 
-    # Check for existing tickets (allow up to 3)
     global tickets_data
     user_key = str(user.id)
     user_tickets = tickets_data.get(user_key, [])
     active_tickets = [t for t in user_tickets if isinstance(t, dict) and guild.get_channel(int(t.get("channel_id", 0))) is not None]
     if len(active_tickets) >= 3:
-        await interaction.response.send_message("You can have up to 3 active tickets.", ephemeral=True)
-        return
+        asyncio.create_task(interaction.response.send_message("You can have up to 3 active tickets.", ephemeral=True))
+        return None
     # Clean up stale tickets
     user_tickets = active_tickets
     tickets_data[user_key] = user_tickets
     write_json(TICKET_JSON, tickets_data)
+    return user_tickets
 
-    # Determine category key and channel name
+def determine_category_and_subtype(delivery_type: str, subtype: Optional[str]) -> tuple[str, Optional[str]]:
+    """Determine category_key and subtype_key."""
     category_key = "other"
     subtype_key = None
     if delivery_type.lower() == "robux":
@@ -455,17 +441,10 @@ async def create_ticket_for_user(interaction: discord.Interaction, delivery_type
         elif subtype == "ingame":
             category_key = "robux_ingame"
             subtype_key = "ingame"
-        else:
-            category_key = "other"
-    else:
-        category_key = "other"
+    return category_key, subtype_key
 
-    # Unique channel name: ticket-username-XXXX
-    safe_name = user.name.lower().replace(" ", "-")[:20]
-    unique_suffix = str(user.id)[-4:]
-    channel_name = f"ticket-{safe_name}-{unique_suffix}"
-
-    # Build overwrites: only user and support role and bot can view
+def build_channel_overwrites(guild: discord.Guild, user: discord.User) -> Dict[discord.abc.Snowflake, discord.PermissionOverwrite]:
+    """Build permission overwrites for the ticket channel."""
     overwrites = {
         guild.default_role: discord.PermissionOverwrite(view_channel=False),
         user: discord.PermissionOverwrite(view_channel=True, send_messages=True, read_message_history=True, attach_files=True),
@@ -473,45 +452,30 @@ async def create_ticket_for_user(interaction: discord.Interaction, delivery_type
     support_role = guild.get_role(SUPPORT_ROLE_ID)
     if support_role:
         overwrites[support_role] = discord.PermissionOverwrite(view_channel=True, send_messages=True, read_message_history=True)
-    # bot perms
     overwrites[guild.me] = discord.PermissionOverwrite(view_channel=True, send_messages=True, manage_channels=True, read_message_history=True)
+    return overwrites
 
-    # find category object (select the first non-full category for the key)
-    category = select_ticket_category(guild, category_key)
-
-    # if no category available (all configured categories full or invalid), we'll create the channel at top-level
-    # and optionally ping staff in the created channel. This avoids failing to create a ticket when categories hit the 50-channel limit.
-
-    # create channel
-    try:
-        channel = await guild.create_text_channel(name=channel_name, overwrites=overwrites, category=category, topic=f"Ticket for {user} ({user.id})")
-    except Exception as e:
-        await interaction.response.send_message(f"Failed to create ticket channel: {e}", ephemeral=True)
-        return
-
-    # Calculate cost if Robux
+def calculate_total_cost(delivery_type: str, subtype_key: Optional[str], amount: int, payment_method: str) -> tuple[float, Optional[str]]:
+    """Calculate total cost and get notes."""
     total_cost = 0.0
     notes = None
     if delivery_type.lower() == "robux" and subtype_key:
         price_per_thousand = price_for(subtype_key)
         if price_per_thousand is None:
             price_per_thousand = 0.0
-        # compute
         thousands = amount / 1000.0
         base = thousands * price_per_thousand
         fee_pct = payment_fee_for(payment_method)
         total_cost = base + (base * (fee_pct / 100.0))
-        # fetch payment instructions from JSON
         pay_info = read_json(PAYMENT_JSON)
         notes = pay_info.get(payment_method.lower(), None)
-    else:
-        # Other tickets: attach extra notes as description
-        notes = extra_notes
+    return total_cost, notes
 
-    # Save ticket meta
+def save_ticket_info(user_key: str, channel: discord.TextChannel, delivery_type: str, subtype_key: Optional[str], payment_method: str, amount: int, total_cost: float, user_tickets: List[Dict[str, Any]]):
+    """Save ticket metadata."""
     ticket_info = {
         "channel_id": channel.id,
-        "user_id": user.id,
+        "user_id": int(user_key),
         "created_at": datetime.now(timezone.utc).isoformat(),
         "last_activity": datetime.now(timezone.utc).isoformat(),
         "delivery_type": delivery_type,
@@ -522,27 +486,54 @@ async def create_ticket_for_user(interaction: discord.Interaction, delivery_type
         "warned": False,
         "warn_time": None
     }
-    user_tickets = tickets_data.get(user_key, [])
     user_tickets.append(ticket_info)
     tickets_data[user_key] = user_tickets
     write_json(TICKET_JSON, tickets_data)
 
-    # Post ticket info embed in the ticket channel
-    embed = ticket_info_embed(user=user, delivery_type=delivery_type, subtype=(subtype_key or "N/A"),
-                              payment_method=payment_method, amount=amount, total_cost=total_cost, notes=notes)
-    # Provide a Close button for staff
+async def post_ticket_embed_and_confirm(channel: discord.TextChannel, user: discord.User, delivery_type: str, subtype_key: Optional[str], payment_method: str, amount: int, total_cost: float, notes: Optional[str], extra_notes: Optional[str], interaction: discord.Interaction):
+    """Post embed in channel and confirm to user."""
+    if notes is None:
+        notes = extra_notes
+    embed = ticket_info_embed(user=user, delivery_type=delivery_type, subtype=subtype_key, payment_method=payment_method, amount=amount, total_cost=total_cost, notes=notes)
     close_view = TicketChannelView(channel_owner_id=user.id)
+    support_role = channel.guild.get_role(SUPPORT_ROLE_ID)
     await channel.send(content=f"{support_role.mention if support_role else ''} • Ticket created by {user.mention}", embed=embed, view=close_view)
-    # Ephemeral confirmation to user
     await interaction.response.send_message(f"Ticket created: {channel.mention}", ephemeral=True)
 
-    # Optionally post to a 'getting_info' category channel
-    getting_info_cat = guild.get_channel(CATEGORY_IDS.get("getting_info"))
+    # Post to getting_info
+    getting_info_cat = channel.guild.get_channel(CATEGORY_IDS.get("getting_info"))
     if getting_info_cat:
         try:
             await getting_info_cat.send(f"New ticket {channel.mention} created by {user.mention} • Type: {delivery_type} {('(' + (subtype_key or '') + ')') if subtype_key else ''}")
         except Exception:
             pass
+
+async def create_ticket_for_user(interaction: discord.Interaction, delivery_type: str, subtype: Optional[str], payment_method: str, amount: int = 0, extra_notes: Optional[str] = None):
+    """Create a ticket channel for the interaction user, enforce one-ticket-per-user, post embed & instructions."""
+    user = interaction.user
+    user_tickets = validate_ticket_creation(user, interaction.guild, interaction)
+    if user_tickets is None:
+        return
+
+    category_key, subtype_key = determine_category_and_subtype(delivery_type, subtype)
+
+    # Unique channel name: ticket-username-XXXX
+    safe_name = user.name.lower().replace(" ", "-")[:20]
+    unique_suffix = str(user.id)[-4:]
+    channel_name = f"ticket-{safe_name}-{unique_suffix}"
+
+    overwrites = build_channel_overwrites(interaction.guild, user)
+    category = select_ticket_category(interaction.guild, category_key)
+
+    try:
+        channel = await interaction.guild.create_text_channel(name=channel_name, overwrites=overwrites, category=category, topic=f"Ticket for {user} ({user.id})")
+    except Exception as e:
+        await interaction.response.send_message(f"Failed to create ticket channel: {e}", ephemeral=True)
+        return
+
+    total_cost, notes = calculate_total_cost(delivery_type, subtype_key, amount, payment_method)
+    save_ticket_info(str(user.id), channel, delivery_type, subtype_key, payment_method, amount, total_cost, user_tickets)
+    await post_ticket_embed_and_confirm(channel, user, delivery_type, subtype_key, payment_method, amount, total_cost, notes, extra_notes, interaction)
 
 # ---------------------------
 # Ticket channel View (Close button)
@@ -755,92 +746,8 @@ class KeepTicketOpenButton(Button):
         )
         await interaction.response.send_message(embed=embed, ephemeral=True)
 
-@tasks.loop(hours=1)  # Check every hour
-async def check_ticket_inactivity():
-    now = datetime.now(timezone.utc)
-    guild = bot.guilds[0] if bot.guilds else None  # Assuming single guild
-    if not guild:
-        return
-
-    for cat_id in INACTIVITY_CATEGORIES:
-        category = guild.get_channel(cat_id)
-        if not category or not isinstance(category, discord.CategoryChannel):
-            continue
-
-        for channel in category.text_channels:
-            # Skip if already has pending close
-            if channel.id in pending_auto_closes:
-                warning_time = pending_auto_closes[channel.id]
-                # Check if 12 hours have passed since warning
-                if now - warning_time >= timedelta(hours=12):
-                    # Auto-close based on category
-                    if cat_id == 1422279034867286046:
-                        await close_ticket(channel, bot.user, "Auto-closed due to inactivity (normal)")
-                    else:
-                        await closefail_ticket(channel, bot.user, "Auto-closed due to inactivity (failed)")
-                    pending_auto_closes.pop(channel.id, None)
-                    write_pending_closes(pending_auto_closes)
-                continue
-
-            # Check last message
-            try:
-                last_message = None
-                async for msg in channel.history(limit=1):
-                    last_message = msg
-                    break
-
-                if last_message:
-                    time_since_last = now - last_message.created_at
-                    # Special handling for category 1422279034867286046: auto-close after 1 day without warning
-                    if cat_id == 1422279034867286046:
-                        if time_since_last >= timedelta(hours=12):
-                            await close_ticket(channel, bot.user, "Auto-closed due to completion")
-                        continue  # Skip warning for this category
-                    
-                    if time_since_last >= timedelta(hours=48):
-                        # Send warning
-                        embed = discord.Embed(
-                            title="Ticket Inactivity Warning",
-                            description="This ticket has been inactive for 2 days and will close in 12 hours unless stopped.",
-                            color=discord.Color.red()
-                        )
-
-                        view = View()
-                        view.add_item(KeepTicketOpenButton())
-
-                        try:
-                            # Find ticket creator to ping
-                            mention = "@here"  # fallback
-                            for uid, user_tickets in tickets_data.items():
-                                if not isinstance(user_tickets, list):
-                                    continue
-                                for ticket in user_tickets:
-                                    if not isinstance(ticket, dict):
-                                        continue
-                                    if int(ticket.get("channel_id", 0)) == channel.id:
-                                        user_id = ticket.get("user_id")
-                                        if user_id:
-                                            user = guild.get_member(user_id)
-                                            if user:
-                                                mention = user.mention
-                                            else:
-                                                mention = f"<@{user_id}>"
-                                        break
-                                else:
-                                    continue
-                                break
-                            await channel.send(mention, embed=embed, view=view)
-                            pending_auto_closes[channel.id] = now
-                            write_pending_closes(pending_auto_closes)
-                        except Exception as e:
-                            print(f"Failed to send inactivity warning to {channel}: {e}")
-                        except Exception as e:
-                            print(f"Failed to send inactivity warning to {channel}: {e}")
-            except Exception as e:
-                print(f"Error checking channel {channel}: {e}")
-
 # ---------------------------
-# Slash Commands
+# Commands
 # ---------------------------
 
 
@@ -999,16 +906,12 @@ async def help_cmd(interaction: discord.Interaction):
 
 
 
-
-
-
-
-
-
-
-
-@bot.event
+# ---------------------------
+# Events
+# ---------------------------
 async def on_ready():
+    global BOOT_TIME
+    BOOT_TIME = datetime.now(timezone.utc)
     print(f"Logged in as {bot.user} (ID: {bot.user.id})")
     await pull_tickets_from_git()
     print("Syncing commands...")
@@ -1018,6 +921,7 @@ async def on_ready():
     except Exception as e:
         print("Failed to sync commands:", e)
     check_inactivity.start()
+    update_all_spender_roles.start()
 
     # Clean up old sticky messages and resend new ones on restart
     for ch_id, msg_id in list(sticky_message_ids.items()):
@@ -1037,6 +941,38 @@ async def on_ready():
                 print(f"Failed to send sticky to {ch_id}: {e}")
     # Save updated IDs
     write_json(STICKY_IDS_JSON, sticky_message_ids)
+
+    # Auto-manage ticket panel
+    channel = bot.get_channel(TICKET_PANEL_CHANNEL_ID)
+    if channel and isinstance(channel, discord.TextChannel):
+        try:
+            # Fetch recent messages from bot
+            messages = []
+            async for msg in channel.history(limit=50):
+                if msg.author == bot.user:
+                    messages.append(msg)
+            panel_messages = [msg for msg in messages if msg.embeds and any(embed.title == "Create a Ticket" for embed in msg.embeds)]
+            
+            if panel_messages:
+                # Check for panels from current boot
+                current_boot_panels = [msg for msg in panel_messages if msg.created_at >= BOOT_TIME]
+                if not current_boot_panels:
+                    # Delete old panels
+                    for msg in panel_messages:
+                        await msg.delete()
+                    # Send new panel
+                    await send_ticket_panel(channel)
+                    print("Replaced old ticket panel with new one.")
+                else:
+                    print("Ticket panel from current boot found, keeping it.")
+            else:
+                # No panel found, send new one
+                await send_ticket_panel(channel)
+                print("Sent new ticket panel.")
+        except Exception as e:
+            print(f"Error managing ticket panel: {e}")
+    
+    print(f"Bot ready as {bot.user}. Spender role updater and inactivity check tasks started.")
 
 # /ticket-panel - admin only to send the panel
 class AdminOnly(app_commands.CheckFailure):
@@ -1092,6 +1028,66 @@ def add_to_user_spent(user_id: int, amount: float):
 # ---------------------------
 # Slash /close command
 # ---------------------------
+async def handle_close(closer: discord.User, target: discord.TextChannel, is_prefix: bool = False, interaction: Optional[discord.Interaction] = None, ctx: Optional[commands.Context] = None):
+    """Shared logic for closing tickets."""
+    # Find user and ticket amount
+    user = None
+    ticket_amount = 0.0
+    uid_found = None
+    for uid, user_tickets in tickets_data.items():
+        if not isinstance(user_tickets, list):
+            continue
+        for ticket in user_tickets:
+            if isinstance(ticket, dict) and int(ticket.get("channel_id", 0)) == target.id:
+                ticket_amount = ticket.get("total_cost", 0.0)
+                uid_found = uid
+                try:
+                    user = await bot.fetch_user(int(uid))
+                except Exception:
+                    user = None
+                break
+        else:
+            continue
+        break
+
+    # DM user
+    if user:
+        dm_message = (
+            "✅ **This transaction has been completed!**\n\n"
+            "It has been a pleasure doing business with you! "
+            "Feel free to vouch 💖\n\n"
+            "**HOW TO VOUCH:**\n"
+            "➡️ [Go to the vouch channel](https://discord.com/channels/945694600377552916/965514182986452992)\n\n"
+            "**Be very detailed on your vouches to Shiba!**\n\n"
+            "__Example:__\n"
+            "+Vouch <@1183784957232029742> (items) (price) (your feedback) (photo/proof)\n\n"
+            "+Vouch <@1183784957232029742> 20,000 Robux via Group Payout, 110$! Very Fast. "
+            "(Attached an image/photo)\n\n"
+            "📌 **Please follow the exact format including the '+' as it registers to a bot.**"
+        )
+        embed = discord.Embed(
+            title="Transaction Completed 🎉",
+            description=dm_message,
+            color=discord.Color.green()
+        )
+        try:
+            await user.send(embed=embed)
+        except Exception as e:
+            print(f"Could not DM user: {e}")
+
+    # Update accounting
+    if ticket_amount > 0 and uid_found:
+        add_to_user_spent(int(uid_found), ticket_amount)
+
+    # Close ticket
+    await close_ticket(target, closer, reason="Manual close")
+
+    # Respond
+    if is_prefix and ctx:
+        await ctx.send("Ticket closed successfully.")
+    elif interaction:
+        await interaction.response.send_message("Ticket closed successfully.", ephemeral=True)
+
 @bot.tree.command(name="close", description="Close a ticket (staff only). If no channel provided, will attempt to close current channel.")
 @app_commands.describe(channel="The ticket channel to close (optional)")
 async def slash_close(interaction: discord.Interaction, channel: Optional[discord.TextChannel] = None):
@@ -1110,46 +1106,7 @@ async def slash_close(interaction: discord.Interaction, channel: Optional[discor
         await interaction.response.send_message("Please provide a valid channel or run this command inside the ticket channel.", ephemeral=True)
         return
 
-    # DM user before closing
-    user = None
-    ticket_amount = 0.0
-    for uid, user_tickets in tickets_data.items():
-        if not isinstance(user_tickets, list):
-            continue
-        for ticket in user_tickets:
-            if not isinstance(ticket, dict):
-                continue
-            if int(ticket.get("channel_id", 0)) == target.id:
-                ticket_amount = ticket.get("total_cost", 0.0)
-                try:
-                    user = await bot.fetch_user(int(uid))
-                except Exception:
-                    user = None
-                break
-        else:
-            continue
-        break
-
-    if user:
-        dm_message = "✅ **This transaction has been completed!**\n\nIt has been a pleasure doing business with you! Feel free to vouch 💖\n\n**HOW TO VOUCH:**\n➡️ [Go to the vouch channel](https://discord.com/channels/945694600377552916/965514182986452992)\n\n**Be very detailed on your vouches to Shiba!**\n\n__Example:__\n+Vouch <@1183784957232029742> (items) (price) (your feedback) (photo/proof)\n\n+Vouch <@1183784957232029742> 20,000 Robux via Group Payout, 110$! Very Fast. (Attached an image/photo)\n\n📌 **Please follow the exact format including the '+' as it registers to a bot.**"
-
-        embed = discord.Embed(
-            title="Transaction Completed 🎉",
-            description=dm_message,
-            color=discord.Color.green()
-        )
-
-        try:
-            await user.send(embed=embed)
-        except Exception as e:
-            print(f"Could not DM user: {e}")
-
-    # Update accounting JSON
-    if ticket_amount > 0:
-        add_to_user_spent(user.id, ticket_amount)
-
-    await interaction.response.defer(ephemeral=True)
-    await close_ticket(target, closer=interaction.user, reason="Manual close (/close command)")
+    await handle_close(member, target, is_prefix=False, interaction=interaction)
 
 # ---------------------------
 # Prefix ?close command
@@ -1171,62 +1128,7 @@ async def prefix_close(ctx: commands.Context, channel: Optional[discord.TextChan
         await ctx.send("Please provide a valid channel or run this command inside the ticket channel.")
         return
 
-    # DM user before closing
-    user = None
-    ticket_amount = 0.0
-    ticket_found = False
-    uid_found = None
-    for uid, user_tickets in tickets_data.items():
-        if not isinstance(user_tickets, list):
-            continue
-        for ticket in user_tickets:
-            if isinstance(ticket, dict) and int(ticket.get("channel_id", 0)) == target.id:
-                ticket_amount = ticket.get("total_cost", 0.0)
-                ticket_found = True
-                uid_found = uid
-                try:
-                    user = await bot.fetch_user(int(uid))
-                except Exception:
-                    user = None
-                break
-        if ticket_found:
-            break
-
-    if not user:
-        await ctx.send("Ticket found, but could not fetch user. Proceeding with close.")
-        # Still close the ticket
-
-    dm_message = (
-        "✅ **This transaction has been completed!**\n\n"
-        "It has been a pleasure doing business with you! "
-        "Feel free to vouch 💖\n\n"
-        "**HOW TO VOUCH:**\n"
-        "➡️ [Go to the vouch channel](https://discord.com/channels/945694600377552916/965514182986452992)\n\n"
-        "**Be very detailed on your vouches to Shiba!**\n\n"
-        "__Example:__\n"
-        "+Vouch <@1183784957232029742> (items) (price) (your feedback) (photo/proof)\n\n"
-        "+Vouch <@1183784957232029742> 20,000 Robux via Group Payout, 110$! Very Fast. "
-        "(Attached an image/photo)\n\n"
-        "📌 **Please follow the exact format including the '+' as it registers to a bot.**"
-    )
-
-    embed = discord.Embed(
-        title="Transaction Completed 🎉",
-        description=dm_message,
-        color=discord.Color.green()
-    )
-
-    try:
-        await user.send(embed=embed)
-    except Exception as e:
-        print(f"Could not DM user: {e}")
-
-    # Update accounting JSON
-    if ticket_amount > 0 and uid_found:
-        add_to_user_spent(int(uid_found), ticket_amount)
-
-    # Close the ticket
-    await close_ticket(target, closer=ctx.author, reason="Manual close (!close command)")
+    await handle_close(member, target, is_prefix=True, ctx=ctx)
 
 
 # ---------------------------
@@ -1950,12 +1852,6 @@ async def update_all_spender_roles():
                 print(f"Error updating roles for {member}: {e}")
 
 
-@bot.event
-async def on_ready():
-    update_all_spender_roles.start()
-    print(f"Bot ready. Spender role updater task started.")
-
-
 
 
 
@@ -2013,7 +1909,7 @@ async def update_all_spender_roles():
                 print(f"Error updating roles for {member}: {e}")
 
 
-# Paste your bot token here (keep it secret!)
+
 
 
 
@@ -2053,54 +1949,6 @@ async def add_people_cmd(interaction: discord.Interaction, user: discord.User):
 
 
 
-
-@bot.event
-async def on_ready():
-    global BOOT_TIME
-    BOOT_TIME = datetime.now(timezone.utc)
-    
-    try:
-        await bot.tree.sync()
-    except Exception as e:
-        print("Failed to sync commands:", e)
-    try:
-        update_all_spender_roles.start()
-        check_ticket_inactivity.start()
-    except RuntimeError:
-        # task already started
-        pass
-    
-    # Auto-manage ticket panel
-    channel = bot.get_channel(TICKET_PANEL_CHANNEL_ID)
-    if channel and isinstance(channel, discord.TextChannel):
-        try:
-            # Fetch recent messages from bot
-            messages = []
-            async for msg in channel.history(limit=50):
-                if msg.author == bot.user:
-                    messages.append(msg)
-            panel_messages = [msg for msg in messages if msg.embeds and any(embed.title == "Create a Ticket" for embed in msg.embeds)]
-            
-            if panel_messages:
-                # Check for panels from current boot
-                current_boot_panels = [msg for msg in panel_messages if msg.created_at >= BOOT_TIME]
-                if not current_boot_panels:
-                    # Delete old panels
-                    for msg in panel_messages:
-                        await msg.delete()
-                    # Send new panel
-                    await send_ticket_panel(channel)
-                    print("Replaced old ticket panel with new one.")
-                else:
-                    print("Ticket panel from current boot found, keeping it.")
-            else:
-                # No panel found, send new one
-                await send_ticket_panel(channel)
-                print("Sent new ticket panel.")
-        except Exception as e:
-            print(f"Error managing ticket panel: {e}")
-    
-    print(f"Bot ready as {bot.user}. Spender role updater and inactivity check tasks started.")
 
 # Start the bot
 bot.run(TOKEN)
