@@ -2,8 +2,11 @@
 from dotenv import load_dotenv
 import os
 
-# Load .env file from protected folder
-load_dotenv('/root/config/.env')
+# Load .env file from current directory for local testing, or from /root/config/.env on VPS
+try:
+    load_dotenv('/root/config/.env')  # VPS path
+except:
+    load_dotenv()  # Local .env
 
 TOKEN = os.getenv("TOKEN")
 print("Loaded TOKEN:", TOKEN)  # temporary debug line
@@ -95,6 +98,7 @@ STICKY_JSON = "stickymessages.json"
 STICKY_IDS_JSON = "sticky_message_ids.json"
 TICKET_JSON = "tickets.json"
 PENDING_CLOSES_JSON = "pending_closes.json"
+ACCOUNTING_JSON = "accounting.json"
 
 
 # ---------------------------
@@ -115,27 +119,27 @@ def read_json(path: str) -> Any:
 def write_json(path: str, data: Any):
     with open(path, "w", encoding="utf-8") as f:
         json.dump(data, f, indent=2, default=str)
-    # Commit immediately after writing tickets.json
-    if path == TICKET_JSON:
-        asyncio.create_task(push_tickets_to_git())
+    # Commit immediately after writing important JSON files
+    if path in [TICKET_JSON, ACCOUNTING_JSON, PRICES_PATH, PAYMENT_FEES_PATH, PAYMENT_JSON, STICKY_JSON, STICKY_IDS_JSON, PENDING_CLOSES_JSON]:
+        asyncio.create_task(push_file_to_git(path))
 
-async def push_tickets_to_git():
+async def push_file_to_git(filename: str):
     try:
-        print("Attempting to push tickets to git")
+        print(f"Attempting to push {filename} to git")
         # Run git commands asynchronously
         process = await asyncio.create_subprocess_shell(
-            "git add tickets.json",
+            f"git add {filename}",
             cwd=os.getcwd(),
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.PIPE
         )
         await process.wait()
         if process.returncode != 0:
-            print(f"Git add failed: {process.returncode}")
+            print(f"Git add failed for {filename}: {process.returncode}")
             return
 
         process = await asyncio.create_subprocess_shell(
-            "git commit -m 'Update tickets'",
+            f"git commit -m 'Update {filename}'",
             cwd=os.getcwd(),
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.PIPE
@@ -151,15 +155,15 @@ async def push_tickets_to_git():
             )
             await process.wait()
             if process.returncode == 0:
-                print("Successfully pushed tickets to git")
+                print(f"Successfully pushed {filename} to git")
             else:
-                print(f"Git push failed: {process.returncode}")
+                print(f"Git push failed for {filename}: {process.returncode}")
         elif "nothing to commit" in (await process.stdout.read()).decode():
-            print("No changes to commit for tickets")
+            print(f"No changes to commit for {filename}")
         else:
-            print(f"Git commit failed: {process.returncode}")
+            print(f"Git commit failed for {filename}: {process.returncode}")
     except Exception as e:
-        print(f"Error pushing to git: {e}")
+        print(f"Error pushing {filename} to git: {e}")
 
 async def pull_tickets_from_git():
     try:
@@ -1006,7 +1010,6 @@ async def ticket_panel(interaction: discord.Interaction):
 # ---------------------------
 # Accounting helper functions
 # ---------------------------
-ACCOUNTING_JSON = "accounting.json"
 
 def read_accounting():
     if not os.path.exists(ACCOUNTING_JSON):
@@ -1512,7 +1515,7 @@ EXCHANGE_API_KEY = "4d06c91d8f5e07ab99bbeb3e"
 EXCHANGE_URL = f"https://v6.exchangerate-api.com/v6/{EXCHANGE_API_KEY}/latest/"
 
 # ---- Slash Command ----
-@tree.command(name="convert-currency", description="Convert between currencies (e.g. /convert-currency 100 USD IDR)")
+@bot.tree.command(name="convert-currency", description="Convert between currencies (e.g. /convert-currency 100 USD IDR)")
 async def curr_slash(interaction: discord.Interaction, amount: float, from_currency: str, to_currency: str):
     await interaction.response.defer(thinking=True)
     result = await convert_currency(amount, from_currency.upper(), to_currency.upper())
@@ -1862,52 +1865,6 @@ async def update_all_spender_roles():
 
 
 
-
-
-
-
-# Role IDs for each threshold (highest to lowest)
-ROLE_THRESHOLDS = [
-    (10000, 1428881303926735049),  # $10k
-    (1000, 1283133993008763041),   # $1k
-    (500, 1257424577248755783),    # $500
-    (100, 965514388759007282),     # $100
-]
-
-@tasks.loop(minutes=5)  # Adjust as needed
-async def update_all_spender_roles():
-    for guild in bot.guilds:
-        data = read_accounting()
-        for uid, info in data.get("users", {}).items():
-            member = guild.get_member(int(uid))
-            if not member:
-                continue
-
-            amount_spent = info.get("spent", 0)
-            assigned_role = None
-
-            # Find the highest tier role
-            for threshold, role_id in ROLE_THRESHOLDS:
-                if amount_spent >= threshold:
-                    assigned_role = guild.get_role(role_id)
-                    break
-
-            if not assigned_role:
-                continue
-
-            # Remove lower-tier roles
-            roles_to_remove = [
-                guild.get_role(rid) for t, rid in ROLE_THRESHOLDS if rid != assigned_role.id
-            ]
-            roles_to_remove = [r for r in roles_to_remove if r in member.roles]
-
-            try:
-                if roles_to_remove:
-                    await member.remove_roles(*roles_to_remove, reason="Upgrading spender role")
-                if assigned_role not in member.roles:
-                    await member.add_roles(assigned_role, reason="Spender role based on balance")
-            except Exception as e:
-                print(f"Error updating roles for {member}: {e}")
 
 
 
