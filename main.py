@@ -753,8 +753,8 @@ class KeepTicketOpenButton(Button):
 
 
 
-# Slash command: add/update a payment fee
-@bot.tree.command(name="add-payment", description="Add or update a payment method fee (admins only). Example: /add-payment paypal 10")
+# Slash command: set/update a payment fee
+@bot.tree.command(name="set-payment-fee", description="Add or update a payment method fee (admins only). Example: /set-payment-fee paypal 10")
 @app_commands.describe(name="Payment method key", fee="Fee percentage (e.g. 7 for 7%)")
 async def add_payment_cmd(interaction: discord.Interaction, name: str, fee: float):
     member = interaction.user
@@ -770,7 +770,7 @@ async def add_payment_cmd(interaction: discord.Interaction, name: str, fee: floa
         await interaction.response.send_message(f"Error saving fee: {e}", ephemeral=True)
 
 # Slash command: delete a payment method
-@bot.tree.command(name="delete-payment", description="Delete a payment method (fees and instructions) (admins only). Example: /delete-payment paypal")
+@bot.tree.command(name="remove-payment-method", description="Delete a payment method (fees and instructions) (admins only). Example: /remove-payment-method paypal")
 @app_commands.describe(name="Payment method key to delete")
 async def delete_payment_cmd(interaction: discord.Interaction, name: str):
     member = interaction.user
@@ -790,7 +790,7 @@ async def delete_payment_cmd(interaction: discord.Interaction, name: str):
     await interaction.response.send_message(f"Deleted payment method **{key}**.", ephemeral=True)
 
 # Slash command: set/update a price
-@bot.tree.command(name="set-price", description="Set or update a price for a subtype (admins only). Example: /set-price gamepass 4.75")
+@bot.tree.command(name="update-price", description="Set or update a price for a subtype (admins only). Example: /update-price gamepass 4.75")
 @app_commands.describe(subtype="Subtype key", price="Price per thousand Robux")
 @app_commands.choices(subtype=[
     app_commands.Choice(name="Gamepass", value="gamepass"),
@@ -814,7 +814,7 @@ async def set_price_cmd(interaction: discord.Interaction, subtype: str, price: f
         await interaction.response.send_message(f"Error saving price: {e}", ephemeral=True)
 
 # Slash command: view prices
-@bot.tree.command(name="view-prices", description="View current prices (admins only)")
+@bot.tree.command(name="prices", description="View current prices (admins only)")
 async def view_prices_cmd(interaction: discord.Interaction):
     member = interaction.user
     if not isinstance(member, discord.Member) or not (1457147563475075284 in [r.id for r in member.roles]):
@@ -840,8 +840,9 @@ async def help_cmd(interaction: discord.Interaction):
             "• Supports Robux purchases (Gamepass, Group Funds, In-Game) and other support\n\n"
             "**Ticket Management:**\n"
             "• `/close` - Close a ticket (staff only)\n"
-            "• `/closefail` - Close without adding to balance (staff only)\n"
-            "• `/conf` - Confirm payment and move ticket (staff only)\n"
+            "• `/close-without-payment` - Close without adding to balance (staff only)\n"
+            "• `/confirm-payment` - Confirm payment and move ticket (staff only)\n"
+            "• `/add-user-to-ticket` - Add a user to the ticket (staff only)\n"
             "• Automatic inactivity closing after 3 days\n"
             "• Transcripts saved to files"
         ),
@@ -852,14 +853,14 @@ async def help_cmd(interaction: discord.Interaction):
         name="💰 Pricing & Payments",
         value=(
             "**Price Management:**\n"
-            "• `/set-price` - Update Robux prices (price managers only)\n"
-            "• `/view-prices` - View current prices (price managers only)\n\n"
+            "• `/update-price` - Update Robux prices (price managers only)\n"
+            "• `/prices` - View current prices (price managers only)\n\n"
             "**Payment Methods:**\n"
-            "• `/add-payment` - Add/update payment fees (admins only)\n"
-            "• `/delete-payment` - Remove payment method (admins only)\n"
-            "• `/edit-payment` - Edit payment instructions (admins only)\n"
-            "• `/view-payments` - View payment instructions (admins only)\n"
-            "• `/stick` - Set sticky message for a channel (admins only)"
+            "• `/set-payment-fee` - Add/update payment fees (admins only)\n"
+            "• `/remove-payment-method` - Remove payment method (admins only)\n"
+            "• `/update-payment-instructions` - Edit payment instructions (admins only)\n"
+            "• `/payment-instructions` - View payment instructions (admins only)\n"
+            "• `/set-sticky-message` - Set sticky message for a channel (admins only)"
         ),
         inline=False
     )
@@ -868,13 +869,13 @@ async def help_cmd(interaction: discord.Interaction):
         name="📊 Analytics & Tools",
         value=(
             "**User Info:**\n"
-            "• `/info @user` - View total spent by user (staff only)\n"
+            "• `/user-spending @user` - View total spent by user (staff only)\n"
             "• `/leaderboard` - Top 10 spenders (public)\n\n"
             "**Currency Conversion:**\n"
-            "• `/curr <amount> <from> <to>` - Convert currencies\n\n"
+            "• `/convert-currency <amount> <from> <to>` - Convert currencies\n\n"
             "**Accounting:**\n"
-            "• `!addbal @user <amount>` - Add to user balance (staff only)\n"
-            "• `!subbal @user <amount>` - Subtract from user balance (staff only)"
+            "• `!add-spending @user <amount>` - Add to user balance (staff only)\n"
+            "• `!subtract-spending @user <amount>` - Subtract from user balance (staff only)"
         ),
         inline=False
     )
@@ -1266,7 +1267,7 @@ async def check_inactivity():
 # ---------------------------
 # discord.py requires the app command callbacks parameter names to match; earlier I used 'intraction' typo -
 # ensure the 'edit' command signature matches. We'll add a check command for admins to view payment info
-@bot.tree.command(name="view-payments", description="View configured payment instructions (admins only)")
+@bot.tree.command(name="payment-instructions", description="View configured payment instructions (admins only)")
 async def view_payments(interaction: discord.Interaction):
     member = interaction.user
     if not isinstance(member, discord.Member) or not is_admin_member(member):
@@ -1341,7 +1342,7 @@ class StickyEditModal(Modal):
         await interaction.response.send_message("Sticky message updated.", ephemeral=True)
 
 
-@bot.tree.command(name="edit-payment", description="Edit payment method instructions (admins only)")
+@bot.tree.command(name="update-payment-instructions", description="Edit payment method instructions (admins only)")
 @app_commands.describe(payment_method="Payment method key")
 async def edit_payment_cmd(interaction: discord.Interaction, payment_method: str):
     member = interaction.user
@@ -1355,7 +1356,7 @@ async def edit_payment_cmd(interaction: discord.Interaction, payment_method: str
     await interaction.response.send_modal(modal)
 
 
-@bot.tree.command(name="stick", description="Set or edit sticky message for a channel (admins only)")
+@bot.tree.command(name="set-sticky-message", description="Set or edit sticky message for a channel (admins only)")
 @app_commands.describe(channel="The channel to set sticky for")
 async def stick_cmd(interaction: discord.Interaction, channel: discord.TextChannel):
     member = interaction.user
@@ -1386,11 +1387,11 @@ NEEDS_IGG_ID = 1430037751696330872
 NEEDS_GF_ID = 1430037817249239145
 NEEDS_GP_ID = 1430037995678990356
 
-@bot.tree.command(name="conf", description="Confirm the payment and move ticket to proper category")
+@bot.tree.command(name="confirm-payment", description="Confirm the payment and move ticket to proper category")
 async def slash_conf(interaction: discord.Interaction):
     await handle_confirmation(interaction.user, interaction.channel, is_prefix=False, interaction=interaction)
 
-@bot.command(name="conf")
+@bot.command(name="confirm-payment")
 async def prefix_conf(ctx: commands.Context):
     await handle_confirmation(ctx.author, ctx.channel, is_prefix=True)
 
@@ -1511,7 +1512,7 @@ EXCHANGE_API_KEY = "4d06c91d8f5e07ab99bbeb3e"
 EXCHANGE_URL = f"https://v6.exchangerate-api.com/v6/{EXCHANGE_API_KEY}/latest/"
 
 # ---- Slash Command ----
-@tree.command(name="curr", description="Convert between currencies (e.g. /curr 100 USD IDR)")
+@tree.command(name="convert-currency", description="Convert between currencies (e.g. /convert-currency 100 USD IDR)")
 async def curr_slash(interaction: discord.Interaction, amount: float, from_currency: str, to_currency: str):
     await interaction.response.defer(thinking=True)
     result = await convert_currency(amount, from_currency.upper(), to_currency.upper())
@@ -1526,7 +1527,7 @@ async def curr_slash(interaction: discord.Interaction, amount: float, from_curre
         await interaction.followup.send(embed=embed)
 
 # ---- Prefix Command ----
-@commands.command(name="curr", help="Convert between currencies (e.g. !curr 100 USD IDR)")
+@commands.command(name="convert-currency", help="Convert between currencies (e.g. !convert-currency 100 USD IDR)")
 async def curr_prefix(ctx, amount: float, from_currency: str, to_currency: str):
     async with ctx.typing():
         result = await convert_currency(amount, from_currency.upper(), to_currency.upper())
@@ -1563,7 +1564,7 @@ async def convert_currency(amount: float, from_currency: str, to_currency: str):
 # ---------------------------
 # /info or ?info @user (staff only)
 # ---------------------------
-@bot.tree.command(name="info", description="View total spent by a user (staff only)")
+@bot.tree.command(name="user-spending", description="View total spent by a user (staff only)")
 @app_commands.describe(user="The user to check")
 async def slash_info(interaction: discord.Interaction, user: discord.User):
     member = interaction.user
@@ -1581,7 +1582,7 @@ async def slash_info(interaction: discord.Interaction, user: discord.User):
     )
     await interaction.response.send_message(embed=embed, ephemeral=True)
 
-@bot.command(name="info")
+@bot.command(name="user-spending")
 @commands.has_any_role(*[SUPPORT_ROLE_ID])  # staff-only prefix version
 async def prefix_info(ctx: commands.Context, user: discord.User):
     data = read_accounting()
@@ -1639,7 +1640,7 @@ async def prefix_leaderboard(ctx: commands.Context):
 # ---------------------------
 
 # Slash version
-@bot.tree.command(name="closefail", description="Close a ticket without adding money to balance (staff only)")
+@bot.tree.command(name="close-without-payment", description="Close a ticket without adding money to balance (staff only)")
 @app_commands.describe(channel="The ticket channel to close (optional)")
 async def slash_closefail(interaction: discord.Interaction, channel: Optional[discord.TextChannel] = None):
     member = interaction.user
@@ -1658,7 +1659,7 @@ async def slash_closefail(interaction: discord.Interaction, channel: Optional[di
     await closefail_ticket(target, closer=member, reason="Manual closefail")
 
 # Prefix version
-@bot.command(name="closefail")
+@bot.command(name="close-without-payment")
 async def prefix_closefail(ctx: commands.Context, channel: Optional[discord.TextChannel] = None):
     member = ctx.author
     if not (is_admin_member(member) or any(r.id == SUPPORT_ROLE_ID for r in member.roles)):
@@ -1682,7 +1683,7 @@ async def prefix_closefail(ctx: commands.Context, channel: Optional[discord.Text
 # ---------------------------
 # Slash commands
 # ---------------------------
-@bot.tree.command(name="addbal", description="Add balance to user's total spent (staff only)")
+@bot.tree.command(name="add-spending", description="Add balance to user's total spent (staff only)")
 @app_commands.describe(user="The user to add balance to", amount="Amount to add (in USD)")
 async def slash_addbal(interaction: discord.Interaction, user: discord.User, amount: float):
     member = interaction.user
@@ -1709,7 +1710,7 @@ async def slash_addbal(interaction: discord.Interaction, user: discord.User, amo
         await interaction.response.send_message(f"An error occurred: {e}", ephemeral=True)
 
 
-@bot.tree.command(name="subbal", description="Subtract balance from user's total spent (staff only)")
+@bot.tree.command(name="subtract-spending", description="Subtract balance from user's total spent (staff only)")
 @app_commands.describe(user="The user to subtract balance from", amount="Amount to subtract (in USD)")
 async def slash_subbal(interaction: discord.Interaction, user: discord.User, amount: float):
     member = interaction.user
@@ -1739,7 +1740,7 @@ async def slash_subbal(interaction: discord.Interaction, user: discord.User, amo
 # ---------------------------
 # Prefix (!) versions for staff
 # ---------------------------
-@bot.command(name="addbal")
+@bot.command(name="add-spending")
 async def prefix_addbal(ctx: commands.Context, user: discord.User, amount: float):
     member = ctx.author
     if not (is_admin_member(member) or any(r.id == SUPPORT_ROLE_ID for r in member.roles)):
@@ -1765,7 +1766,7 @@ async def prefix_addbal(ctx: commands.Context, user: discord.User, amount: float
         await ctx.send(f"An error occurred: {e}")
 
 
-@bot.command(name="subbal")
+@bot.command(name="subtract-spending")
 async def prefix_subbal(ctx: commands.Context, user: discord.User, amount: float):
     member = ctx.author
     if not (is_admin_member(member) or any(r.id == SUPPORT_ROLE_ID for r in member.roles)):
@@ -1919,7 +1920,7 @@ async def update_all_spender_roles():
 
 
 
-@bot.tree.command(name="addppl", description="Add a user to the ticket (staff only).")
+@bot.tree.command(name="add-user-to-ticket", description="Add a user to the ticket (staff only).")
 @app_commands.describe(user="The user to add to the ticket")
 async def add_people_cmd(interaction: discord.Interaction, user: discord.User):
     member = interaction.user
